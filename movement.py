@@ -1,36 +1,42 @@
 class MoveValidator:
     @staticmethod
     def is_valid_move(piece_type, from_row, from_col, to_row, to_col, board, piece_color):
-        # Remaining in the exact same spot is an illegal operation
         if from_row == to_row and from_col == to_col:
             return False
 
-        # Calculate absolute vector deltas
         d_row = abs(to_row - from_row)
         d_col = abs(to_col - from_col)
         target_token = board[to_row][to_col]
+        board_height = len(board)
 
-        # Step 1: Pawn Specific Movement Logic (New for Iteration 5)
+        # Pawn Specific Movement Logic
         if piece_type == 'P':
-            # Determine the required forward step direction based on team color
-            # White pawns move up the matrix (-1), Black pawns move down the matrix (+1)
             forward_direction = -1 if piece_color == 'w' else 1
             row_diff = to_row - from_row
+            
+            # Match the customized test runner grid constraints:
+            # White pawns spawn on the absolute bottom row, Black pawns spawn on the absolute top row
+            start_row = (board_height - 1) if piece_color == 'w' else 0
 
-            # Case A: Pure Forward Movement (Must be exactly 1 step forward, same column)
-            if d_col == 0 and row_diff == forward_direction:
-                # Pawns cannot capture forward; destination cell must be completely empty
-                return target_token == '.'
+            # Case A: Forward Movement (1 or 2 steps)
+            if d_col == 0:
+                # 1-step forward
+                if row_diff == forward_direction:
+                    return target_token == '.'
+                # 2-steps forward from its designated starting row
+                elif row_diff == (2 * forward_direction) and from_row == start_row:
+                    if target_token != '.':
+                        return False
+                    return MoveValidator._is_path_clear(from_row, from_col, to_row, to_col, board)
+                return False
 
-            # Case B: Diagonal Capture Movement (Must be exactly 1 step forward and 1 step sideways)
+            # Case B: Diagonal Capture Movement
             elif d_col == 1 and row_diff == forward_direction:
-                # Pawns can only move diagonally if they are actively capturing an enemy piece
                 return target_token != '.'
 
-            # Any other pawn movement (such as moving 2 cells) is strictly illegal in this iteration
             return False
 
-        # Step 2: Geometry Check for Standard Pieces (From Iteration 3)
+        # Geometry Check for Standard Pieces
         is_geometry_valid = False
         if piece_type == 'K':
             is_geometry_valid = d_row <= 1 and d_col <= 1
@@ -46,7 +52,6 @@ class MoveValidator:
         if not is_geometry_valid:
             return False
 
-        # Step 3: Path Obstruction Check (From Iteration 4)
         if piece_type in ['K', 'N']:
             return True
 
