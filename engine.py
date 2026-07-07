@@ -9,29 +9,23 @@ class ChessEngine:
         self.game_clock = 0       # Cumulative system clock time in milliseconds
 
     def click(self, x, y):
-        # Convert pixel inputs into matrix grid coordinates
         row = y // 100
         col = x // 100
 
-        # Boundary safeguard check
         if not (0 <= row < self.rows and 0 <= col < self.cols):
             return
 
         token = self.board[row][col]
 
-        # Case 1: Interacting with an occupied square
         if token != '.':
             if self.selected_pos is None:
                 self.selected_pos = (row, col)
             else:
                 curr_row, curr_col = self.selected_pos
-                # Friendly piece interaction -> Replace active selection focus
                 if token[0] == self.board[curr_row][curr_col][0]:
                     self.selected_pos = (row, col)
                 else:
-                    # Hostile piece interaction -> Attempt capture move
                     self._execute_move(curr_row, curr_col, row, col)
-        # Case 2: Interacting with an empty square
         else:
             if self.selected_pos is not None:
                 curr_row, curr_col = self.selected_pos
@@ -47,18 +41,16 @@ class ChessEngine:
     def _execute_move(self, from_row, from_col, to_row, to_col):
         moving_piece = self.board[from_row][from_col]
         target_piece = self.board[to_row][to_col]
-        piece_type = moving_piece[1]  # Extract single character token shape (K, R, B, Q, N)
+        piece_type = moving_piece[1]
+        piece_color = moving_piece[0]  # Extract team color prefix ('w' or 'b')
 
-        # Capture Guard: Prevent capturing a piece of the exact same team color
         if target_piece != '.' and target_piece[0] == moving_piece[0]:
             return
 
-        # Route to specific geometric and path obstruction strategy checks
-        if not MoveValidator.is_valid_move(piece_type, from_row, from_col, to_row, to_col, self.board):
-            # Move is illegal or blocked -> Ignore and maintain active selection focus
+        # Pass the piece color to the validation strategy to support direction-sensitive tokens like Pawns
+        if not MoveValidator.is_valid_move(piece_type, from_row, from_col, to_row, to_col, self.board, piece_color):
             return
 
-        # Move is legal -> Execute matrix update (handles empty movement and enemy captures) and clear selection
         self.board[to_row][to_col] = self.board[from_row][from_col]
         self.board[from_row][from_col] = '.'
         self.selected_pos = None
