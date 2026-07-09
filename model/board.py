@@ -40,3 +40,8 @@ class Board:
         token = self.get_piece(src)
         self._matrix[dst.row][dst.col] = token
         self._matrix[src.row][src.col] = EMPTY
+
+    def replace_piece(self, pos: Position, token: str) -> None:
+        if not self.in_bounds(pos):
+            raise IndexError(f"Position out of bounds: {pos}")
+        self._matrix[pos.row][pos.col] = token

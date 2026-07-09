@@ -1,4 +1,5 @@
 from model.board import EMPTY
+from model.piece import Piece
 from model.position import Position
 from rules.piece_rules import legal_destinations
 
@@ -32,9 +33,7 @@ class RuleEngine:
 
 
 def _token_to_piece(token: str, pos: Position):
-    from types import SimpleNamespace
-    kind = _KIND_MAP[token[1]]
-    return SimpleNamespace(color=token[0], kind=kind, cell=pos)
+    return Piece.from_token(token, pos)
 
 
 _KIND_MAP = {

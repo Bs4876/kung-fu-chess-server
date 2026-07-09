@@ -1,11 +1,11 @@
-from types import SimpleNamespace
 from model.board import Board, EMPTY
+from model.piece import Piece
 from model.position import Position
 from rules.piece_rules import RookRule, BishopRule, QueenRule, KnightRule, KingRule, PawnRule
 
 
 def piece(kind, color, row, col):
-    return SimpleNamespace(kind=kind, color=color, cell=Position(row, col))
+    return Piece(color=color, kind=kind, cell=Position(row, col))
 
 
 def board_from(rows):
