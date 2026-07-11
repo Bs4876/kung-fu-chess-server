@@ -1,7 +1,7 @@
 from typing import List
-from model.position import Position
-from realtime.motion import Motion, ArrivalEvent
+from motion import Motion, ArrivalEvent
 from config import JUMP_TRAVEL_TIME
+from position import Position
 
 
 class RealTimeArbiter:

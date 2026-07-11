@@ -1,5 +1,5 @@
 from typing import Optional
-from model.position import Position
+from position import Position
 from config import CELL_SIZE
 
 
@@ -12,7 +12,6 @@ class BoardMapper:
     def pixel_to_cell(self, x: int, y: int) -> Optional[Position]:
         col = x // self._cell_size
         row = y // self._cell_size
-        pos = Position(row, col)
         if 0 <= row < self._rows and 0 <= col < self._cols:
-            return pos
+            return Position(row, col)
         return None

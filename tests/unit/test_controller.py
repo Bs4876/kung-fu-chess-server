@@ -15,7 +15,7 @@ def setup(rows=("wR . .",)):
             if token != EMPTY:
                 pieces[(r, c)] = token
     engine.snapshot.return_value = GameSnapshot(
-        rows=board.rows, cols=board.cols, pieces=pieces, game_over=False
+        board=Board([[c for c in row.split()] for row in rows]), game_over=False
     )
     mapper = BoardMapper(rows=board.rows, cols=board.cols)
     controller = Controller(engine, mapper)

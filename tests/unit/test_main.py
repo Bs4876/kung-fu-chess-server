@@ -78,3 +78,13 @@ def test_main_entrypoint():
     finally:
         sys.stdin = original_stdin
         sys.stdout = original_stdout
+
+
+def test_main_jump_command():
+    result = run("Board:\nwR . .\nCommands:\njump 50 50\nwait 1000\nprint board")
+    assert "wR" in result
+
+
+def test_main_jump_outside_board_ignored():
+    result = run("Board:\nwR . .\nCommands:\njump 9999 9999\nprint board")
+    assert "wR" in result

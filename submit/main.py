@@ -1,11 +1,9 @@
-# Repository URL: https://github.com/Bs4876/kung-fu-chess-server
-
 import sys
-from chess_io.board_parser import BoardParser
-from chess_io.board_printer import BoardPrinter
-from engine.game_engine import GameEngine
-from input.board_mapper import BoardMapper
-from input.controller import Controller
+from board_parser import BoardParser
+from board_printer import BoardPrinter
+from game_engine import GameEngine
+from board_mapper import BoardMapper
+from controller import Controller
 from config import CELL_SIZE
 
 
@@ -17,7 +15,6 @@ def main(parser=None, stdin=None, stdout=None):
     input_text = stdin.read().strip()
     if not input_text:
         return
-
     lines = [line.strip() for line in input_text.splitlines()]
     board_lines, command_lines = _split_input(lines)
 

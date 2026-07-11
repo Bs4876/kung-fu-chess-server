@@ -1,7 +1,7 @@
-from model.board import Board, EMPTY
-from model.position import Position
-from rules.rule_engine import RuleEngine
-from realtime.real_time_arbiter import RealTimeArbiter
+from board import Board, EMPTY
+from position import Position
+from rule_engine import RuleEngine
+from real_time_arbiter import RealTimeArbiter
 
 
 class MoveResult:

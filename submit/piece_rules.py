@@ -1,5 +1,5 @@
-from model.board import EMPTY
-from model.position import Position
+from board import EMPTY
+from position import Position
 
 
 def _sliding_destinations(board, src, directions):

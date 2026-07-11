@@ -1,4 +1,4 @@
-from model.position import Position
+from position import Position
 from config import MOVE_TRAVEL_TIME_PER_CELL, JUMP_TRAVEL_TIME
 
 

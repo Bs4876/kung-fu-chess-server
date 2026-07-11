@@ -63,3 +63,28 @@ def test_diagonal_uses_max_distance():
     assert len(events) == 0
     events = arb.advance_time(1)
     assert len(events) == 1
+
+
+def test_airborne_destinations_returns_jump_dsts():
+    arb = RealTimeArbiter()
+    arb.start_jump("wR", Position(1, 1))
+    dsts = arb.airborne_destinations()
+    assert Position(1, 1) in dsts
+    assert dsts[Position(1, 1)] == "wR"
+
+
+def test_jump_arrives_after_jump_travel_time():
+    from config import JUMP_TRAVEL_TIME
+    arb = RealTimeArbiter()
+    arb.start_jump("wR", Position(0, 0))
+    events = arb.advance_time(JUMP_TRAVEL_TIME)
+    assert len(events) == 1
+    assert events[0].piece_token == "wR"
+    assert events[0].src == Position(0, 0)
+    assert events[0].dst == Position(0, 0)
+
+
+def test_motion_with_explicit_travel_time():
+    from realtime.motion import Motion
+    m = Motion("wR", Position(0, 0), Position(0, 5), start_time=0, travel_time=500)
+    assert m.arrival_time == 500

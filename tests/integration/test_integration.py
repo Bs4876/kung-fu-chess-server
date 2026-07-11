@@ -173,19 +173,19 @@ def test_enemy_collision_black_started_first():
 # ── Pawn rules ───────────────────────────────────────────────────────────────
 
 def test_white_pawn_moves_one_step():
-    assert run("Board:\n. . .\n. wP .\n. . .\nCommands:\nclick 150 150\nclick 150 50\nwait 1000\nprint board") == ". wP .\n. . .\n. . ."
+    assert run("Board:\n. . . .\n. . . .\n. wP . .\n. . . .\nCommands:\nclick 150 250\nclick 150 150\nwait 1000\nprint board") == ". . . .\n. wP . .\n. . . .\n. . . ."
 
 
 def test_black_pawn_moves_one_step():
-    assert run("Board:\n. . .\n. bP .\n. . .\nCommands:\nclick 150 150\nclick 150 250\nwait 1000\nprint board") == ". . .\n. . .\n. bP ."
+    assert run("Board:\n. . . .\n. bP . .\n. . . .\n. . . .\nCommands:\nclick 150 150\nclick 150 250\nwait 1000\nprint board") == ". . . .\n. . . .\n. bP . .\n. . . ."
 
 
 def test_pawn_no_double_move():
-    assert run("Board:\n. . .\n. . .\n. wP .\nCommands:\nclick 150 250\nclick 150 50\nwait 2000\nprint board") == ". . .\n. . .\n. wP ."
+    assert run("Board:\n. . .\n. . .\n. wP .\n. . .\nCommands:\nclick 150 250\nclick 150 50\nwait 2000\nprint board") == ". . .\n. . .\n. wP .\n. . ."
 
 
 def test_pawn_captures_diagonally():
-    assert run("Board:\nbP . .\n. wP .\n. . .\nCommands:\nclick 150 150\nclick 50 50\nwait 1000\nprint board") == "wP . .\n. . .\n. . ."
+    assert run("Board:\n. . . .\n. . . .\nbP . . .\n. wP . .\nCommands:\nclick 150 350\nclick 50 250\nwait 1000\nprint board") == ". . . .\n. . . .\nwP . . .\n. . . ."
 
 
 def test_pawn_cannot_capture_forward():

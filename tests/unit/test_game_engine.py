@@ -115,3 +115,67 @@ def test_snapshot_get_piece_delegates_to_board():
     assert snap.get_piece(Position(0, 0)) == "wR"
     assert snap.get_piece(Position(0, 1)) == EMPTY
 
+
+def test_snapshot_board_property():
+    b = board_from(["wR . .", ". . .", ". . ."])
+    engine = GameEngine(b)
+    snap = engine.snapshot()
+    assert snap.board is b
+
+
+def test_request_jump_ignored_when_game_over():
+    b = board_from(["wR . .", ". . .", ". . ."])
+    engine = GameEngine(b)
+    engine._game_over = True
+    engine.request_jump(Position(0, 0))  # should not raise
+
+
+def test_request_jump_ignored_when_motion_active():
+    b = board_from(["wR . .", ". . .", ". . ."])
+    engine = GameEngine(b)
+    engine.request_move(Position(0, 0), Position(0, 2))
+    engine.request_jump(Position(0, 0))  # should not raise
+
+
+def test_request_jump_ignored_on_empty_cell():
+    b = board_from([". . .", ". . .", ". . ."])
+    engine = GameEngine(b)
+    engine.request_jump(Position(0, 0))  # should not raise
+
+
+def test_request_jump_starts_jump_motion():
+    b = board_from(["wR . .", ". . .", ". . ."])
+    engine = GameEngine(b)
+    engine.request_jump(Position(0, 0))
+    engine.wait(1000)
+    assert b.get_piece(Position(0, 0)) == "wR"  # jump returns to same cell
+
+
+def test_pawn_promotes_on_last_row_white():
+    b = board_from([". . .", "wP . .", ". . ."])
+    engine = GameEngine(b)
+    engine._arbiter.start_motion("wP", Position(1, 0), Position(2, 0))
+    engine.wait(1000)
+    assert b.get_piece(Position(2, 0)) == "wQ"
+
+
+def test_pawn_promotes_on_last_row_black():
+    b = board_from([". . .", "bP . .", ". . ."])
+    engine = GameEngine(b)
+    engine._arbiter.start_motion("bP", Position(1, 0), Position(0, 0))
+    engine.wait(1000)
+    assert b.get_piece(Position(0, 0)) == "bQ"
+
+
+def test_airborne_collision_removes_attacker():
+    # wR moves 1 cell (arrives at 1000ms); bR jump started 500ms earlier so still airborne at 1000ms
+    b = board_from(["wR bR .", ". . .", ". . ."])
+    engine = GameEngine(b)
+    engine._arbiter._clock = -500  # jump started 500ms before move
+    engine._arbiter.start_jump("bR", Position(0, 1))  # arrival_time = -500 + 1000 = 500
+    engine._arbiter._clock = 0
+    engine._arbiter.start_motion("wR", Position(0, 0), Position(0, 1))  # arrival_time = 1000
+    engine.wait(1000)  # clock=1000: motion arrives, jump already arrived (500) -> in airborne_dsts
+    assert b.get_piece(Position(0, 0)) == EMPTY
+    assert b.get_piece(Position(0, 1)) == "bR"
+
