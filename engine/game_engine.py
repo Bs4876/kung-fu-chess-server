@@ -37,7 +37,7 @@ class GameEngine:
         return self._game_over
 
     def request_jump(self, pos: Position) -> None:
-        if self._game_over or self._arbiter.has_active_motion():
+        if self._game_over or self._arbiter.has_active_motion_for(pos):
             return
         token = self._board.get_piece(pos)
         if token == EMPTY:
@@ -47,7 +47,7 @@ class GameEngine:
     def request_move(self, source: Position, destination: Position) -> MoveResult:
         if self._game_over:
             return MoveResult(False, "game_over")
-        if self._arbiter.has_active_motion():
+        if self._arbiter.has_active_motion_for(source):
             return MoveResult(False, "motion_in_progress")
         validation = self._rule_engine.validate_move(self._board, source, destination)
         if not validation.is_valid:

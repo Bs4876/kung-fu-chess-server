@@ -167,6 +167,54 @@ def test_pawn_promotes_on_last_row_black():
     assert b.get_piece(Position(0, 0)) == "bQ"
 
 
+def test_second_move_of_different_piece_is_accepted_while_first_in_progress():
+    b = board_from(["wR . .", ". . .", "bR . ."])
+    engine = GameEngine(b)
+    first = engine.request_move(Position(0, 0), Position(0, 2))
+    second = engine.request_move(Position(2, 0), Position(2, 2))
+    assert first.is_accepted
+    assert second.is_accepted
+    assert second.reason == "ok"
+
+
+def test_two_different_pieces_arrive_independently():
+    b = board_from(["wR . .", ". . .", "bB . ."])
+    engine = GameEngine(b)
+    engine.request_move(Position(0, 0), Position(0, 1))  # 1 cell -> 1000ms
+    engine.request_move(Position(2, 0), Position(0, 2))  # 2 diagonal cells -> 2000ms
+    engine.wait(1000)
+    assert b.get_piece(Position(0, 1)) == "wR"
+    assert b.get_piece(Position(2, 0)) == "bB"  # not arrived yet
+    engine.wait(1000)
+    assert b.get_piece(Position(0, 2)) == "bB"
+
+
+def test_same_piece_still_rejected_while_its_own_motion_active():
+    b = board_from(["wR . .", ". . .", ". . ."])
+    engine = GameEngine(b)
+    engine.request_move(Position(0, 0), Position(0, 2))
+    result = engine.request_move(Position(0, 0), Position(0, 1))
+    assert not result.is_accepted
+    assert result.reason == "motion_in_progress"
+
+
+def test_jump_of_other_piece_allowed_while_first_piece_moving():
+    b = board_from(["wR . .", ". . .", "bN . ."])
+    engine = GameEngine(b)
+    engine.request_move(Position(0, 0), Position(0, 2))
+    engine.request_jump(Position(2, 0))  # should not raise, different piece
+    engine.wait(1000)
+    assert b.get_piece(Position(2, 0)) == "bN"  # jump lands back on same cell
+
+
+def test_move_of_other_piece_allowed_while_first_piece_jumping():
+    b = board_from(["wR . .", ". . .", "bN . ."])
+    engine = GameEngine(b)
+    engine.request_jump(Position(2, 0))
+    result = engine.request_move(Position(0, 0), Position(0, 1))
+    assert result.is_accepted
+
+
 def test_airborne_collision_removes_attacker():
     # wR moves 1 cell (arrives at 1000ms); bR jump started 500ms earlier so still airborne at 1000ms
     b = board_from(["wR bR .", ". . .", ". . ."])

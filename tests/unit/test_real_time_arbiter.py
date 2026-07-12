@@ -88,3 +88,42 @@ def test_motion_with_explicit_travel_time():
     from realtime.motion import Motion
     m = Motion("wR", Position(0, 0), Position(0, 5), start_time=0, travel_time=500)
     assert m.arrival_time == 500
+
+
+def test_has_active_motion_for_true_for_moving_source():
+    arb = RealTimeArbiter()
+    arb.start_motion("wR", Position(0, 0), Position(0, 2))
+    assert arb.has_active_motion_for(Position(0, 0))
+
+
+def test_has_active_motion_for_false_for_unrelated_position():
+    arb = RealTimeArbiter()
+    arb.start_motion("wR", Position(0, 0), Position(0, 2))
+    assert not arb.has_active_motion_for(Position(1, 1))
+
+
+def test_has_active_motion_for_false_when_no_motions():
+    arb = RealTimeArbiter()
+    assert not arb.has_active_motion_for(Position(0, 0))
+
+
+def test_has_active_motion_for_true_for_jumping_position():
+    arb = RealTimeArbiter()
+    arb.start_jump("wR", Position(1, 1))
+    assert arb.has_active_motion_for(Position(1, 1))
+
+
+def test_has_active_motion_for_false_after_arrival():
+    arb = RealTimeArbiter()
+    arb.start_motion("wR", Position(0, 0), Position(0, 1))
+    arb.advance_time(1000)
+    assert not arb.has_active_motion_for(Position(0, 0))
+
+
+def test_multiple_concurrent_motions_tracked_independently():
+    arb = RealTimeArbiter()
+    arb.start_motion("wR", Position(0, 0), Position(0, 2))
+    arb.start_motion("bR", Position(2, 2), Position(2, 0))
+    assert arb.has_active_motion_for(Position(0, 0))
+    assert arb.has_active_motion_for(Position(2, 2))
+    assert not arb.has_active_motion_for(Position(0, 2))

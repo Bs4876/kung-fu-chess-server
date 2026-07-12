@@ -13,6 +13,9 @@ class RealTimeArbiter:
     def has_active_motion(self) -> bool:
         return len(self._motions) > 0
 
+    def has_active_motion_for(self, pos: Position) -> bool:
+        return any(m.src == pos for m in self._motions) or any(m.src == pos for m in self._jumps)
+
     def airborne_destinations(self) -> dict:
         return {m.dst: m.piece_token for m in self._jumps}
 

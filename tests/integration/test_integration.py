@@ -139,16 +139,27 @@ def test_moving_piece_ignores_redirect():
 
 # ── Common route constraints ─────────────────────────────────────────────────
 
-def test_opposite_colors_do_not_move_concurrently_in_common_route():
-    assert run("Board:\nwR . .\n. . .\nbR . .\nCommands:\nclick 50 50\nclick 250 50\nclick 50 250\nclick 250 250\nwait 2000\nprint board") == ". . wR\n. . .\nbR . ."
-
-
 def test_premove_does_not_execute_in_common_route():
     assert run("Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nclick 50 50\nclick 250 50\nwait 2000\nprint board") == ". wR ."
 
 
 def test_dynamic_block_tactic_not_in_common_route():
     assert run("Board:\n. . . .\nwQ . . bK\n. . bP .\n. . . .\nCommands:\nclick 50 150\nclick 350 150\nwait 200\nclick 250 250\nclick 250 150\nwait 3000\nprint board") == ". . . .\n. . . wQ\n. . bP .\n. . . ."
+
+
+# ── Concurrent motion of multiple pieces ─────────────────────────────────────
+
+def test_two_unrelated_pieces_move_concurrently():
+    assert run(
+        "Board:\nwR . . .\n. . . .\n. . . bR\nCommands:\n"
+        "click 50 50\nclick 150 50\n"
+        "click 350 250\nclick 150 250\n"
+        "wait 1000\nprint board"
+    ) == ". wR . .\n. . . .\n. . . bR"
+
+
+def test_opposite_colors_move_concurrently_extra_route():
+    assert run("Board:\nwR . .\n. . .\nbR . .\nCommands:\nclick 50 50\nclick 250 50\nclick 50 250\nclick 250 250\nwait 2000\nprint board") == ". . wR\n. . .\n. . bR"
 
 
 # ── Capture and game over ────────────────────────────────────────────────────
