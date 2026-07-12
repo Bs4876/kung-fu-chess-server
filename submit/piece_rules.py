@@ -69,12 +69,16 @@ class KingRule:
 class PawnRule:
     def legal_destinations(self, board, piece):
         forward = -1 if piece.color == "w" else 1
+        start_row = board.rows - 1 if piece.color == "w" else 0
         destinations = set()
         src = piece.cell
 
         fwd = Position(src.row + forward, src.col)
         if board.in_bounds(fwd) and board.get_piece(fwd) == EMPTY:
             destinations.add(fwd)
+            double = Position(src.row + 2 * forward, src.col)
+            if src.row == start_row and board.in_bounds(double) and board.get_piece(double) == EMPTY:
+                destinations.add(double)
 
         for dc in (-1, 1):
             diag = Position(src.row + forward, src.col + dc)

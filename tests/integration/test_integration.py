@@ -229,7 +229,19 @@ def test_black_pawn_moves_one_step():
     assert run("Board:\n. . . .\n. bP . .\n. . . .\n. . . .\nCommands:\nclick 150 150\nclick 150 250\nwait 1000\nprint board") == ". . . .\n. . . .\n. bP . .\n. . . ."
 
 
-def test_pawn_no_double_move():
+def test_white_pawn_double_from_start_valid():
+    assert run("Board:\n. . .\n. . .\n. . .\n. wP .\nCommands:\nclick 150 350\nclick 150 150\nwait 2000\nprint board") == ". . .\n. wP .\n. . .\n. . ."
+
+
+def test_black_pawn_double_from_start_valid():
+    assert run("Board:\n. bP .\n. . .\n. . .\n. . .\nCommands:\nclick 150 50\nclick 150 250\nwait 2000\nprint board") == ". . .\n. . .\n. bP .\n. . ."
+
+
+def test_white_pawn_double_blocked_invalid():
+    assert run("Board:\n. . .\n. . .\n. bR .\n. wP .\nCommands:\nclick 150 350\nclick 150 150\nwait 2000\nprint board") == ". . .\n. . .\n. bR .\n. wP ."
+
+
+def test_white_pawn_double_from_non_start_invalid():
     assert run("Board:\n. . .\n. . .\n. wP .\n. . .\nCommands:\nclick 150 250\nclick 150 50\nwait 2000\nprint board") == ". . .\n. . .\n. wP .\n. . ."
 
 

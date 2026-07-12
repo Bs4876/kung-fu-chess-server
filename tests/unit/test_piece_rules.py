@@ -132,6 +132,30 @@ def test_pawn_blocked_straight():
     assert Position(0, 0) not in dests
 
 
+def test_white_pawn_double_move_from_start_row():
+    b = board_from([". . .", ". . .", ". . .", ". wP ."])
+    dests = PawnRule().legal_destinations(b, piece("pawn", "w", 3, 1))
+    assert Position(1, 1) in dests
+
+
+def test_black_pawn_double_move_from_start_row():
+    b = board_from([". bP .", ". . .", ". . .", ". . ."])
+    dests = PawnRule().legal_destinations(b, piece("pawn", "b", 0, 1))
+    assert Position(2, 1) in dests
+
+
+def test_white_pawn_double_move_blocked_by_piece_directly_ahead():
+    b = board_from([". . .", ". . .", ". bR .", ". wP ."])
+    dests = PawnRule().legal_destinations(b, piece("pawn", "w", 3, 1))
+    assert Position(1, 1) not in dests
+
+
+def test_white_pawn_double_move_not_allowed_outside_start_row():
+    b = board_from([". . .", ". . .", ". wP .", ". . ."])
+    dests = PawnRule().legal_destinations(b, piece("pawn", "w", 2, 1))
+    assert Position(0, 1) not in dests
+
+
 def test_legal_destinations_dispatch():
     from rules.piece_rules import legal_destinations
     b = board_from(["wR . .", ". . .", ". . ."])
