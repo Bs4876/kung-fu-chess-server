@@ -1,7 +1,6 @@
 from model.board import Board, EMPTY
 from model.position import Position
 from engine.game_engine import GameEngine
-from config import COOLDOWN_MS
 
 
 def board_from(rows):
@@ -216,44 +215,23 @@ def test_move_of_other_piece_allowed_while_first_piece_jumping():
     assert result.is_accepted
 
 
-def test_move_rejected_during_cooldown_after_arrival():
-    b = board_from(["wR . .", ". . .", ". . ."])
-    engine = GameEngine(b)
-    engine.request_move(Position(0, 0), Position(0, 1))
-    engine.wait(1000)  # arrives, cooldown starts at (0, 1)
-    result = engine.request_move(Position(0, 1), Position(0, 2))
-    assert not result.is_accepted
-    assert result.reason == "cooldown"
-    assert b.get_piece(Position(0, 1)) == "wR"
-
-
-def test_move_accepted_once_cooldown_expires():
+def test_can_move_again_immediately_after_arrival():
     b = board_from(["wR . .", ". . .", ". . ."])
     engine = GameEngine(b)
     engine.request_move(Position(0, 0), Position(0, 1))
     engine.wait(1000)
-    engine.wait(COOLDOWN_MS)
     result = engine.request_move(Position(0, 1), Position(0, 2))
     assert result.is_accepted
     assert result.reason == "ok"
 
 
-def test_jump_rejected_during_cooldown_after_arrival():
+def test_can_jump_immediately_after_arrival():
     b = board_from(["wR . .", ". . .", ". . ."])
     engine = GameEngine(b)
     engine.request_move(Position(0, 0), Position(0, 1))
     engine.wait(1000)
     engine.request_jump(Position(0, 1))
-    assert not engine._arbiter.has_active_motion_for(Position(0, 1))
-
-
-def test_cooldown_does_not_block_other_pieces():
-    b = board_from(["wR . .", ". . .", "bR . ."])
-    engine = GameEngine(b)
-    engine.request_move(Position(0, 0), Position(0, 1))
-    engine.wait(1000)
-    result = engine.request_move(Position(2, 0), Position(2, 1))
-    assert result.is_accepted
+    assert engine._arbiter.has_active_motion_for(Position(0, 1))
 
 
 def test_capture_cancelled_when_target_changes_before_arrival():

@@ -1,7 +1,6 @@
 from model.position import Position
 from realtime.real_time_arbiter import RealTimeArbiter
 from realtime.motion import Motion, ArrivalEvent, CollisionEvent
-from config import COOLDOWN_MS
 
 
 def test_no_active_motion_initially():
@@ -224,34 +223,6 @@ def test_start_motion_propagates_expected_target_to_arrival_event():
     arb.start_motion("wR", Position(0, 0), Position(0, 1), expected_target="bP")
     events = arb.advance_time(1000)
     assert events[0].expected_target == "bP"
-
-
-# ── Cooldown after arrival ────────────────────────────────────────────────────
-
-def test_no_cooldown_initially():
-    arb = RealTimeArbiter()
-    assert not arb.is_on_cooldown(Position(0, 0))
-
-
-def test_start_cooldown_marks_position_active():
-    arb = RealTimeArbiter()
-    arb.start_cooldown(Position(0, 0))
-    assert arb.is_on_cooldown(Position(0, 0))
-
-
-def test_cooldown_is_per_position():
-    arb = RealTimeArbiter()
-    arb.start_cooldown(Position(0, 0))
-    assert not arb.is_on_cooldown(Position(1, 1))
-
-
-def test_cooldown_expires_after_duration():
-    arb = RealTimeArbiter()
-    arb.start_cooldown(Position(0, 0))
-    arb.advance_time(COOLDOWN_MS - 1)
-    assert arb.is_on_cooldown(Position(0, 0))
-    arb.advance_time(1)
-    assert not arb.is_on_cooldown(Position(0, 0))
 
 
 def test_arrivals_within_one_wait_are_processed_in_chronological_order():

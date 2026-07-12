@@ -125,8 +125,12 @@ def test_single_move_completes_after_arrival():
     assert run("Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nprint board") == ". wR ."
 
 
-def test_cannot_move_again_immediately_after_arrival_extra_route():
-    assert run("Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nclick 150 50\nclick 250 50\nwait 1000\nprint board") == ". wR ."
+def test_can_move_again_after_arrival_without_cooldown():
+    assert run("Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nclick 150 50\nclick 250 50\nwait 1000\nprint board") == ". . wR"
+
+
+def test_piece_is_ready_after_arrival_without_cooldown():
+    assert run("Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nclick 150 50\nclick 250 50\nwait 1000\nprint board") == ". . wR"
 
 
 def test_moving_piece_ignores_redirect():
@@ -180,26 +184,6 @@ def test_capture_cancelled_when_target_vacates_before_arrival():
     ) == "wR . .\n. . bQ\n. . ."
 
 
-# ── Cooldown after arrival ────────────────────────────────────────────────────
-
-def test_second_move_rejected_during_cooldown_then_accepted_after():
-    # A move attempted the instant a piece arrives must be rejected (cooldown);
-    # only the retry issued after the cooldown window (500ms) may start moving.
-    # Printing at t=2000 tells the two timelines apart: a piece that started
-    # moving right away (bug) would already be arriving at the far cell, while
-    # a piece that had to wait out its cooldown (t=1500 start, 1000ms travel)
-    # is still mid-flight and the board still shows it at the near cell.
-    assert run(
-        "Board:\nwR . .\nCommands:\n"
-        "click 50 50\nclick 150 50\n"
-        "wait 1000\n"
-        "click 150 50\nclick 250 50\n"
-        "wait 500\n"
-        "click 150 50\nclick 250 50\n"
-        "wait 500\nprint board"
-    ) == ". wR ."
-
-
 # ── Capture and game over ────────────────────────────────────────────────────
 
 def test_king_capture_ends_game():
@@ -230,11 +214,11 @@ def test_black_pawn_moves_one_step():
 
 
 def test_white_pawn_double_from_start_valid():
-    assert run("Board:\n. . .\n. . .\n. . .\n. wP .\nCommands:\nclick 150 350\nclick 150 150\nwait 2000\nprint board") == ". . .\n. wP .\n. . .\n. . ."
+    assert run("Board:\n. . .\n. . .\n. . .\n. wP .\n. . .\nCommands:\nclick 150 350\nclick 150 150\nwait 2000\nprint board") == ". . .\n. wP .\n. . .\n. . .\n. . ."
 
 
 def test_black_pawn_double_from_start_valid():
-    assert run("Board:\n. bP .\n. . .\n. . .\n. . .\nCommands:\nclick 150 50\nclick 150 250\nwait 2000\nprint board") == ". . .\n. . .\n. bP .\n. . ."
+    assert run("Board:\n. . .\n. bP .\n. . .\n. . .\n. . .\nCommands:\nclick 150 150\nclick 150 350\nwait 2000\nprint board") == ". . .\n. . .\n. . .\n. bP .\n. . ."
 
 
 def test_white_pawn_double_blocked_invalid():
@@ -242,7 +226,7 @@ def test_white_pawn_double_blocked_invalid():
 
 
 def test_white_pawn_double_from_non_start_invalid():
-    assert run("Board:\n. . .\n. . .\n. wP .\n. . .\nCommands:\nclick 150 250\nclick 150 50\nwait 2000\nprint board") == ". . .\n. . .\n. wP .\n. . ."
+    assert run("Board:\n. . .\n. . .\n. . .\n. wP .\nCommands:\nclick 150 350\nclick 150 150\nwait 2000\nprint board") == ". . .\n. . .\n. . .\n. wP ."
 
 
 def test_pawn_captures_diagonally():

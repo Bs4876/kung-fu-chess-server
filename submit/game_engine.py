@@ -38,7 +38,7 @@ class GameEngine:
         return self._game_over
 
     def request_jump(self, pos: Position) -> None:
-        if self._game_over or self._arbiter.has_active_motion_for(pos) or self._arbiter.is_on_cooldown(pos):
+        if self._game_over or self._arbiter.has_active_motion_for(pos):
             return
         token = self._board.get_piece(pos)
         if token == EMPTY:
@@ -50,8 +50,6 @@ class GameEngine:
             return MoveResult(False, "game_over")
         if self._arbiter.has_active_motion_for(source):
             return MoveResult(False, "motion_in_progress")
-        if self._arbiter.is_on_cooldown(source):
-            return MoveResult(False, "cooldown")
         validation = self._rule_engine.validate_move(self._board, source, destination)
         if not validation.is_valid:
             return MoveResult(False, validation.reason)
@@ -99,4 +97,3 @@ class GameEngine:
         self._board.move_piece(src, dst)
         if token != event.piece_token:
             self._board.replace_piece(dst, token)
-        self._arbiter.start_cooldown(dst)

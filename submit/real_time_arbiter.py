@@ -1,7 +1,7 @@
-from typing import Dict, List
+from typing import List
 from position import Position
 from motion import Motion, ArrivalEvent, CollisionEvent
-from config import JUMP_TRAVEL_TIME, COOLDOWN_MS
+from config import JUMP_TRAVEL_TIME
 
 
 class RealTimeArbiter:
@@ -9,19 +9,12 @@ class RealTimeArbiter:
         self._clock = 0
         self._motions: List[Motion] = []
         self._jumps: List[Motion] = []
-        self._cooldowns: Dict[Position, int] = {}
 
     def has_active_motion(self) -> bool:
         return len(self._motions) > 0
 
     def has_active_motion_for(self, pos: Position) -> bool:
         return any(m.src == pos for m in self._motions) or any(m.src == pos for m in self._jumps)
-
-    def start_cooldown(self, pos: Position) -> None:
-        self._cooldowns[pos] = self._clock + COOLDOWN_MS
-
-    def is_on_cooldown(self, pos: Position) -> bool:
-        return self._cooldowns.get(pos, -1) > self._clock
 
     def airborne_destinations(self) -> dict:
         return {m.dst: m.piece_token for m in self._jumps}

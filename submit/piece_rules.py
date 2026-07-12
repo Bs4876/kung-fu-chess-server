@@ -69,7 +69,7 @@ class KingRule:
 class PawnRule:
     def legal_destinations(self, board, piece):
         forward = -1 if piece.color == "w" else 1
-        start_row = board.rows - 1 if piece.color == "w" else 0
+        start_row = board.rows - 2 if piece.color == "w" else 1
         destinations = set()
         src = piece.cell
 
