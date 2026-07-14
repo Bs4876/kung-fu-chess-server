@@ -42,12 +42,13 @@ class Motion:
 
 class ArrivalEvent:
     def __init__(self, piece_token: str, src: Position, dst: Position, airborne_dsts: dict = None,
-                 expected_target: str = None):
+                 expected_target: str = None, is_jump: bool = False):
         self.piece_token = piece_token
         self.src = src
         self.dst = dst
         self.airborne_dsts = airborne_dsts or {}
         self.expected_target = expected_target
+        self.is_jump = is_jump
 
 
 class CollisionEvent:

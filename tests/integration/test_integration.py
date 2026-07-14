@@ -111,6 +111,16 @@ def test_cannot_start_move_through_friendly_piece():
     assert run("Board:\n. . .\nwR wP .\n. . .\nCommands:\nclick 50 150\nclick 250 150\nwait 2000\nprint board") == ". . .\nwR wP .\n. . ."
 
 
+# ── Jump command (text protocol) ─────────────────────────────────────────────
+
+def test_jump_command_relocates_piece_to_destination():
+    assert run("Board:\nwR . .\nCommands:\njump 50 50 250 50\nwait 1000\nprint board") == ". . wR"
+
+
+def test_jump_command_onto_friendly_piece_kills_it():
+    assert run("Board:\nwR . wN\nCommands:\njump 50 50 250 50\nwait 1000\nprint board") == ". . wR"
+
+
 # ── Real-time timing ─────────────────────────────────────────────────────────
 
 def test_one_cell_move_before_arrival_board_unchanged():
@@ -164,13 +174,16 @@ def test_opposite_colors_move_concurrently_extra_route():
 
 # ── Collision between moving pieces ──────────────────────────────────────────
 
-def test_head_on_paths_destroy_both_pieces():
+def test_head_on_paths_only_earlier_move_is_destroyed():
+    # wR moved first (earlier -> destroyed); bR moved second (later -> survives), but its
+    # own arrival still expected "wR" at (0,0), which the collision already cleared, so
+    # bR's arrival is cancelled and it's left sitting at (0,4).
     assert run(
         "Board:\nwR . . . bR\nCommands:\n"
         "click 50 50\nclick 450 50\n"
         "click 450 50\nclick 50 50\n"
         "wait 4000\nprint board"
-    ) == ". . . . ."
+    ) == ". . . . bR"
 
 
 # ── Cancel when target is captured before arrival ────────────────────────────

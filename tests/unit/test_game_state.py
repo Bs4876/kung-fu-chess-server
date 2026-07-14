@@ -17,12 +17,6 @@ def test_board_property_returns_board():
     assert gs.board is b
 
 
-def test_game_over_setter():
-    gs = GameState(make_board())
-    gs.game_over = True
-    assert gs.game_over
-
-
 def test_game_over_initial_true():
     gs = GameState(make_board(), game_over=True)
     assert gs.game_over

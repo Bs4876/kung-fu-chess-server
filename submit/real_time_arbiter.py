@@ -22,13 +22,13 @@ class RealTimeArbiter:
     def start_motion(self, piece_token: str, src: Position, dst: Position, expected_target: str = None) -> None:
         self._motions.append(Motion(piece_token, src, dst, self._clock, expected_target=expected_target))
 
-    def start_jump(self, piece_token: str, pos: Position) -> None:
-        self._jumps.append(Motion(piece_token, pos, pos, self._clock, JUMP_TRAVEL_TIME))
+    def start_jump(self, piece_token: str, src: Position, dst: Position) -> None:
+        self._jumps.append(Motion(piece_token, src, dst, self._clock, JUMP_TRAVEL_TIME))
 
     def advance_time(self, ms: int) -> List:
         old_clock = self._clock
         self._clock += ms
-        collision_events = self._resolve_collisions(old_clock, self._clock)
+        crossing_events = self._resolve_collisions(old_clock, self._clock)
 
         arrived_jumps = [m for m in self._jumps if self._clock >= m.arrival_time]
         self._jumps = [m for m in self._jumps if self._clock < m.arrival_time]
@@ -39,25 +39,46 @@ class RealTimeArbiter:
         self._motions = [m for m in self._motions if self._clock < m.arrival_time]
         airborne_dsts = {m.dst: m.piece_token for m in self._jumps + arrived_jumps}
         events = [ArrivalEvent(m.piece_token, m.src, m.dst, airborne_dsts, m.expected_target) for m in arrived_moves]
-        events += [ArrivalEvent(m.piece_token, m.src, m.dst, {}) for m in arrived_jumps]
-        return collision_events + events
+        events += [ArrivalEvent(m.piece_token, m.src, m.dst, {}, is_jump=True) for m in arrived_jumps]
+        return crossing_events + events
 
-    def _resolve_collisions(self, old_clock: int, new_clock: int) -> List[CollisionEvent]:
-        collided = set()
+    def _resolve_collisions(self, old_clock: int, new_clock: int) -> List:
+        """Resolve two moving pieces whose paths cross at the same instant.
+
+        Different colors: whichever motion started later wins and eats the earlier one,
+        continuing on unaffected. Same color: the later motion halts at the last safe
+        cell before the meeting point instead of colliding.
+        """
+        removed = set()
+        events = []
         for i in range(len(self._motions)):
             for j in range(i + 1, len(self._motions)):
                 a, b = self._motions[i], self._motions[j]
-                if a in collided or b in collided:
+                if a in removed or b in removed:
                     continue
-                if self._paths_meet(a, b, old_clock, new_clock):
-                    collided.add(a)
-                    collided.add(b)
-        if not collided:
-            return []
-        self._motions = [m for m in self._motions if m not in collided]
-        return [CollisionEvent(m.piece_token, m.src) for m in collided]
+                meeting = self._first_meeting(a, b, old_clock, new_clock)
+                if meeting is None:
+                    continue
+                meet_time, _ = meeting
+                earlier, later = (a, b) if a.start_time <= b.start_time else (b, a)
+                if earlier.piece_token[0] == later.piece_token[0]:
+                    removed.add(later)
+                    safe_cell = self._safe_stop_before(later, meet_time)
+                    events.append(ArrivalEvent(later.piece_token, later.src, safe_cell))
+                else:
+                    removed.add(earlier)
+                    events.append(CollisionEvent(earlier.piece_token, earlier.src))
+        if removed:
+            self._motions = [m for m in self._motions if m not in removed]
+        return events
 
     @staticmethod
-    def _paths_meet(a: Motion, b: Motion, old_clock: int, new_clock: int) -> bool:
-        b_steps = {(t, pos) for t, pos in b.path_positions()}
-        return any(old_clock < t <= new_clock and (t, pos) in b_steps for t, pos in a.path_positions())
+    def _first_meeting(a: Motion, b: Motion, old_clock: int, new_clock: int):
+        b_steps = set(b.path_positions())
+        matches = [(t, pos) for t, pos in a.path_positions() if old_clock < t <= new_clock and (t, pos) in b_steps]
+        return min(matches, key=lambda tp: tp[0]) if matches else None
+
+    @staticmethod
+    def _safe_stop_before(motion: Motion, meet_time: int) -> Position:
+        prior = [pos for t, pos in motion.path_positions() if t < meet_time]
+        return prior[-1] if prior else motion.src

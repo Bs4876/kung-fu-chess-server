@@ -13,7 +13,3 @@ class GameState:
     @property
     def game_over(self) -> bool:
         return self._game_over
-
-    @game_over.setter
-    def game_over(self, value: bool) -> None:
-        self._game_over = value

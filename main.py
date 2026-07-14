@@ -50,10 +50,11 @@ def main(parser=None, stdin=None, stdout=None):
         if parts[0] == "click" and len(parts) == 3:
             controller.click(int(parts[1]), int(parts[2]))
 
-        elif parts[0] == "jump" and len(parts) == 3:
-            pos = mapper.pixel_to_cell(int(parts[1]), int(parts[2]))
-            if pos is not None:
-                engine.request_jump(pos)
+        elif parts[0] == "jump" and len(parts) == 5:
+            source = mapper.pixel_to_cell(int(parts[1]), int(parts[2]))
+            destination = mapper.pixel_to_cell(int(parts[3]), int(parts[4]))
+            if source is not None and destination is not None:
+                engine.request_jump(source, destination)
 
         elif parts[0] == "wait" and len(parts) == 2:
             engine.wait(int(parts[1]))
