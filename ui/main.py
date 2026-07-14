@@ -1,10 +1,13 @@
-"""Stage 0: prove the ui/ -> server/ wiring works. No graphics yet."""
+"""Stage 1: draw a single static frame of the opening position and show it."""
 
 import server_bridge  # noqa: F401  (must run before any server-rooted import below)
 
+import ui_config
 from chess_io.board_parser import BoardParser
+from config import CELL_SIZE
 from engine.game_engine import GameEngine
-from model.position import Position
+from graphics.renderer import BoardRenderer
+from graphics.sprite_loader import SpriteLoader
 from model.starting_position import STARTING_POSITION
 
 
@@ -15,10 +18,12 @@ def build_engine() -> GameEngine:
 
 
 def main() -> None:
-    """Smoke test: the ui/server wiring and the opening position are both correct,
-    before any graphics code exists."""
     engine = build_engine()
-    print(engine.snapshot().get_piece(Position(0, 0)))  # expected: "bR"
+    sprite_loader = SpriteLoader(ui_config.ASSETS_DIR, ui_config.SKIN, CELL_SIZE)
+    renderer = BoardRenderer(sprite_loader, CELL_SIZE)
+
+    canvas = renderer.render(engine.snapshot())
+    canvas.show()  # blocking one-shot window; fine until Stage 2 adds a real loop
 
 
 if __name__ == "__main__":
