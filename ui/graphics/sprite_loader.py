@@ -56,6 +56,12 @@ class SpriteLoader:
         path = self._assets_dir / "panel_background.png"
         return Img().read(path, size=(width, height))
 
+    def load_cooldown_fade_frame(self, frame_index: int) -> Img:
+        """Load one pre-baked cooldown-fade overlay frame (1 = just started
+        cooling down/most opaque, higher index = more faded)."""
+        path = self._assets_dir / "cooldown_fade" / f"{frame_index}.png"
+        return Img().read(path, size=(self._cell_size, self._cell_size))
+
     def load_state_config(self, token: str, state: str) -> StateConfig:
         """Return a piece's timing/looping config for one animation state, cached."""
         key = (token, state)

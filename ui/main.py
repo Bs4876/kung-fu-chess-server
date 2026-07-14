@@ -15,6 +15,7 @@ from input.board_mapper import BoardMapper
 from input.controller import Controller
 from model.starting_position import STARTING_POSITION
 from state.game_facade import GameFacade
+from ui_components.cooldown_tracker import CooldownTracker
 from ui_components.game_over_banner import GameOverBanner
 from ui_components.halt_flash import HaltFlashTracker
 from ui_components.moves_log_panel import MovesLogPanel
@@ -73,6 +74,8 @@ def main() -> None:
     facade.subscribe(game_over_banner.handle_event)
     halt_flash = HaltFlashTracker()
     facade.subscribe(halt_flash.handle_event)
+    cooldown_tracker = CooldownTracker()
+    facade.subscribe(cooldown_tracker.handle_event)
     player_labels = PlayerLabels()
 
     sprite_loader = SpriteLoader(ui_config.ASSETS_DIR, ui_config.SKIN, CELL_SIZE)
@@ -85,9 +88,15 @@ def main() -> None:
     fps = 0.0
     while window.poll():
         dt_ms = clock.tick()
+        # Age existing flashes/cooldowns by dt_ms *before* facade.tick() can
+        # start new ones this frame - otherwise a cooldown that only just
+        # started (from an arrival inside this very facade.tick() call) would
+        # immediately get the same dt_ms credited to it a second time, aging
+        # it past COOLDOWN_MS before it's ever drawn even once.
+        halt_flash.tick(dt_ms)
+        cooldown_tracker.tick(dt_ms)
         snapshot = facade.tick(dt_ms)
         fps = next_fps_reading(fps, dt_ms)
-        halt_flash.tick(dt_ms)
 
         # Controller doesn't expose selection via a public API; peeking at its
         # internal state is a pragmatic tradeoff to avoid duplicating it here.
@@ -98,6 +107,7 @@ def main() -> None:
             pending_motions=facade.pending_motions(),
             halted_positions=halt_flash.active_positions(),
             game_over=game_over_banner.is_game_over,
+            cooldown_fade_frames=cooldown_tracker.active_fade_frames(),
         )
         scene = hud.compose(board_canvas, moves_log_panel, score_panel, player_labels)
         draw_fps_overlay(scene, fps)

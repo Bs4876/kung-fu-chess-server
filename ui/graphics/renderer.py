@@ -29,11 +29,12 @@ class BoardRenderer:
 
     def render(self, snapshot, dt_ms: int = 0, selected: Position | None = None,
                pending_motions: dict | None = None, halted_positions: list | None = None,
-               game_over: bool = False):
+               game_over: bool = False, cooldown_fade_frames: dict | None = None):
         """Return a new Img with the board, every piece's current frame, a
         highlight border around the selected cell (if given), a brief red
-        flash over any just-halted cells (if given), and a game-over banner
-        (if the game has ended), all drawn on it."""
+        flash over any just-halted cells (if given), a fading yellow overlay
+        over any cooling-down cells (if given), and a game-over banner (if the
+        game has ended), all drawn on it."""
         pending_motions = pending_motions or {}
         occupied = self._occupied_cells(snapshot)
 
@@ -49,6 +50,8 @@ class BoardRenderer:
             self._draw_selection(canvas, selected)
         for pos in halted_positions or []:
             self._draw_halt_flash(canvas, pos)
+        for pos, frame_index in (cooldown_fade_frames or {}).items():
+            self._draw_cooldown_fade(canvas, pos, frame_index)
         if game_over:
             self._draw_game_over_banner(canvas)
         return canvas
@@ -137,6 +140,10 @@ class BoardRenderer:
     def _draw_halt_flash(self, canvas, position: Position) -> None:
         flash = self._sprites.load_halt_flash()
         flash.draw_on(canvas, position.col * self._cell_size, position.row * self._cell_size)
+
+    def _draw_cooldown_fade(self, canvas, position: Position, frame_index: int) -> None:
+        fade = self._sprites.load_cooldown_fade_frame(frame_index)
+        fade.draw_on(canvas, position.col * self._cell_size, position.row * self._cell_size)
 
     def _draw_game_over_banner(self, canvas) -> None:
         board_height = canvas.img.shape[0]
