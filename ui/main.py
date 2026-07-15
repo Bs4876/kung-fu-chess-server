@@ -19,9 +19,7 @@ from ui_components.halt_flash import HaltFlashTracker
 from ui_components.moves_log_panel import MovesLogPanel
 from ui_components.player_labels import PlayerLabels
 from ui_components.score_panel import ScorePanel
-from user_input.mapper_proxy import MapperProxy
 from user_input.mouse_controller import MouseController
-from user_input.zoom_controller import ZoomController
 
 
 def build_facade() -> GameFacade:
@@ -36,50 +34,29 @@ def build_mapper(facade: GameFacade) -> BoardMapper:
     return BoardMapper(snapshot.rows, snapshot.cols, CELL_SIZE)
 
 
-def build_controller(facade: GameFacade, mapper) -> Controller:
+def build_controller(facade: GameFacade, mapper: BoardMapper) -> Controller:
     """Wire up server's own click-to-move Controller against this facade.
 
     Controller only calls request_move(...)/snapshot() on whatever it's given,
     so pointing it at GameFacade instead of the raw engine needs no changes to
-    Controller itself. mapper is a MapperProxy, not a raw BoardMapper - Controller
-    only ever calls .pixel_to_cell(x, y) on it, so it can't tell the difference.
+    Controller itself.
     """
     return Controller(facade, mapper)
 
 
-def build_zoom_controller() -> ZoomController:
-    return ZoomController(
-        base_cell_size=CELL_SIZE,
-        min_multiplier=ui_config.ZOOM_MIN_MULTIPLIER,
-        max_multiplier=ui_config.ZOOM_MAX_MULTIPLIER,
-        step=ui_config.ZOOM_STEP,
-        zoom_in_keys=ui_config.ZOOM_KEYS_IN,
-        zoom_out_keys=ui_config.ZOOM_KEYS_OUT,
-    )
-
-
-def build_render_stack(cell_size: int) -> tuple[SpriteLoader, BoardRenderer, HudRenderer]:
-    """(Re)build the sprite loader and both renderers for one cell size.
-
-    Every PieceAnimator caches frames pre-sized to whatever SpriteLoader built
-    it, so a zoom-level change rebuilds this whole stack atomically rather
-    than mutating cell_size in place - any in-flight animation restarts at
-    frame 1 of its current state on the exact frame a zoom happens, a
-    one-frame cosmetic blip rather than stale wrong-sized sprites everywhere.
-    """
-    sprite_loader = SpriteLoader(ui_config.ASSETS_DIR, ui_config.SKIN, cell_size)
-    renderer = BoardRenderer(sprite_loader, cell_size)
+def build_render_stack() -> tuple[BoardRenderer, HudRenderer]:
+    """Build both renderers, sharing one sprite loader sized to CELL_SIZE."""
+    sprite_loader = SpriteLoader(ui_config.ASSETS_DIR, ui_config.SKIN, CELL_SIZE)
+    renderer = BoardRenderer(sprite_loader, CELL_SIZE)
     hud = HudRenderer(sprite_loader)
-    return sprite_loader, renderer, hud
+    return renderer, hud
 
 
 def main() -> None:
     facade = build_facade()
-    start_snapshot = facade.snapshot()
-    rows, cols = start_snapshot.rows, start_snapshot.cols
 
-    mapper_proxy = MapperProxy(build_mapper(facade))
-    controller = build_controller(facade, mapper_proxy)
+    mapper = build_mapper(facade)
+    controller = build_controller(facade, mapper)
 
     moves_log_panel = MovesLogPanel()
     facade.subscribe(moves_log_panel.handle_event)
@@ -93,19 +70,16 @@ def main() -> None:
     facade.subscribe(cooldown_tracker.handle_event)
     player_labels = PlayerLabels()
 
-    zoom = build_zoom_controller()
-    sprite_loader, renderer, hud = build_render_stack(zoom.cell_size)
+    renderer, hud = build_render_stack()
     window = Window(ui_config.WINDOW_TITLE)
-    mouse_controller = MouseController(controller, facade, mapper_proxy, board_x_offset=ui_config.PANEL_WIDTH)
+    mouse_controller = MouseController(controller, facade, mapper, board_x_offset=ui_config.PANEL_WIDTH)
     window.set_mouse_callback(mouse_controller.handle_event)
     clock = Clock()
 
-    while window.poll():
-        zoomed = zoom.handle_key(window.consume_key())
-        if zoomed:
-            sprite_loader, renderer, hud = build_render_stack(zoom.cell_size)
-            mapper_proxy.replace(BoardMapper(rows, cols, zoom.cell_size))
+    initial_canvas = renderer.render(facade.snapshot(), 0)
+    window.resize_to(hud.compose(initial_canvas, moves_log_panel, score_panel, player_labels))
 
+    while window.poll():
         dt_ms = clock.tick()
         # Age existing flashes/cooldowns by dt_ms *before* facade.tick() can
         # start new ones this frame - otherwise a cooldown that only just
@@ -128,8 +102,6 @@ def main() -> None:
             cooldown_fade_fractions=cooldown_tracker.active_fade_frames(),
         )
         scene = hud.compose(board_canvas, moves_log_panel, score_panel, player_labels)
-        if zoomed:
-            window.resize_to(scene)
         window.show_frame(scene)
 
     window.close()

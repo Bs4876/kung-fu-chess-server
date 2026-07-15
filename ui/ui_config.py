@@ -43,14 +43,3 @@ MOVES_LOG_MAX_VISIBLE_LINES = 20
 
 # graphics/window.py
 WINDOW_ESC_KEY = 27
-
-# user_input/zoom_controller.py - board zoom, keyboard-driven (alongside
-# dragging the window's edges directly - see graphics/window.py). Bounds
-# chosen so every step lands on an integer pixel size at CELL_SIZE=100: 50/75/
-# 100/125/150/175/200. '+'/'=' zoom in (same physical key, shifted or not);
-# '-'/'_' out.
-ZOOM_KEYS_IN = frozenset({ord("+"), ord("=")})
-ZOOM_KEYS_OUT = frozenset({ord("-"), ord("_")})
-ZOOM_MIN_MULTIPLIER = 0.5
-ZOOM_MAX_MULTIPLIER = 2.0
-ZOOM_STEP = 0.25

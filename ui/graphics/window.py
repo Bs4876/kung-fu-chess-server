@@ -21,7 +21,6 @@ class Window:
 
     def __init__(self, title: str):
         self._title = title
-        self._last_key: int | None = None
         cv2.namedWindow(title, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
 
     def show_frame(self, canvas) -> None:
@@ -31,19 +30,17 @@ class Window:
         itself to fit a differently-sized image - it just scales the new
         canvas into whatever on-screen size it already has. That's exactly
         what lets the user's own drag-resize stick between frames; see
-        resize_to for the one case (a zoom level change) that should still
-        resize the window explicitly.
+        resize_to for giving the window its initial size.
         """
         cv2.imshow(self._title, canvas.img)
 
     def resize_to(self, canvas) -> None:
         """Resize the OS window to exactly fit canvas.
 
-        Called only right after a zoom level change (see
-        user_input/zoom_controller.py) so keyboard zoom still visibly grows
-        or shrinks the window like it did under WINDOW_AUTOSIZE. Never called
-        on every frame - that would fight the user's own drag-resize by
-        snapping the window back on the very next tick.
+        Called once at startup (a fresh WINDOW_NORMAL window doesn't start
+        sized to the first frame shown in it) - never on every frame, since
+        that would fight the user's own drag-resize by snapping the window
+        back to this size on the very next tick.
         """
         height, width = canvas.img.shape[:2]
         cv2.resizeWindow(self._title, width, height)
@@ -54,15 +51,10 @@ class Window:
         raw_key = cv2.waitKey(1)
         # -1 means "no key this frame" - must check before masking with 0xFF,
         # since masking first would make that indistinguishable from keycode 255.
-        self._last_key = None if raw_key == -1 else raw_key & 0xFF
-        if self._last_key == WINDOW_ESC_KEY:
+        key = None if raw_key == -1 else raw_key & 0xFF
+        if key == WINDOW_ESC_KEY:
             return False
         return cv2.getWindowProperty(self._title, cv2.WND_PROP_VISIBLE) >= 1
-
-    def consume_key(self) -> int | None:
-        """Return this frame's key (if any) exactly once, then forget it."""
-        key, self._last_key = self._last_key, None
-        return key
 
     def set_mouse_callback(self, handler) -> None:
         """Register handler(event, x, y, flags, param) for mouse events on this window."""

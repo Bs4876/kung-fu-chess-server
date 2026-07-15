@@ -15,8 +15,9 @@ uv run python ui/main.py
 A window opens with the opening position. Click a piece, then click a
 destination square to move it. To jump instead (bypassing normal move
 legality), left-click to select a piece, then **right-click** the
-destination. `+`/`-` zoom the board in/out (keyboard); the window can also be
-resized by dragging its edges. Esc or the window's close button quits.
+destination. The window can be resized by dragging its edges (both
+dimensions scale together, so the board is never distorted). Esc or the
+window's close button quits.
 
 ## What it does
 
