@@ -30,11 +30,6 @@ HUD_LEFT_PADDING_PX   = 14
 HUD_TOP_PADDING_PX    = 28
 HUD_SCORE_TO_MOVES_GAP_PX = 36
 
-# ui_components/score_panel.py - standard chess piece values. Display-only:
-# the engine has no concept of scoring, so this table stays UI-owned rather
-# than living on server's own Piece class.
-PIECE_VALUES = {"P": 1, "N": 3, "B": 3, "R": 5, "Q": 9, "K": 0}
-
 # ui_components/halt_flash.py
 HALT_FLASH_DURATION_MS = 600
 

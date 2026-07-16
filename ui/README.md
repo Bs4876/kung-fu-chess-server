@@ -33,7 +33,7 @@ window's close button quits.
   updated via an Observer/event stream published by `GameFacade` - see
   `ui/state/game_events.py` and `ui/graphics/hud_renderer.py`.
 - Score is the sum of the piece values of everything that side has captured
-  (`PIECE_VALUES` in `ui/ui_config.py`), not a raw capture count.
+  (`PIECE_VALUES` in `server/model/piece_values.py`), not a raw capture count.
 - The moves log records each accepted move as `<piece> <from>-<to> [<time>]`
   on the mover's own panel; it does not currently list captures, promotions,
   game-over, or rejected moves.

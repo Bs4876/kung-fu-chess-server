@@ -1,10 +1,11 @@
 """Subscribes to PieceCaptured events and tallies each side's score by piece value.
 
-Score is fully derived here - the engine has no concept of scoring at all, so
-the piece-value table lives in ui_config.py rather than on server's own Piece.
+Score is fully derived here - the engine has no concept of scoring at all, but
+the piece-value table itself is chess domain data, so it lives on server's
+model package (model/piece_values.py) rather than in ui_config.py.
 """
 
-from ui_config import PIECE_VALUES
+from model.piece_values import PIECE_VALUES
 
 from state.game_events import PieceCaptured
 
