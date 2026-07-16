@@ -9,7 +9,8 @@ every tick independently of the engine's own timing - see state/motion_tracker.p
 The engine is the one that identifies each outcome (arrival/capture/halt/
 promotion), so it's also the one that publishes it - GameFacade subscribes to
 the engine instead of pulling wait()'s return value, and forwards each one
-(translated via state/motion_tracker.py into the state/game_events.py types
+(reconciled against pending-motion bookkeeping in state/motion_tracker.py, then
+translated via state/outcome_translator.py into the state/game_events.py types
 log/score panels subscribe to) on its own event stream. GameFacade itself just
 coordinates: the engine, the tracker, and the event stream.
 """
@@ -20,6 +21,7 @@ from model.board import EMPTY
 from state.game_events import GameOver, MoveAccepted, MoveRejected
 from state.motion_tracker import MotionTracker
 from state.observer import Subject
+from state.outcome_translator import translate
 
 
 def _chebyshev_distance(a, b) -> int:
@@ -43,9 +45,10 @@ class GameFacade:
 
     def _on_engine_outcome(self, outcome) -> None:
         """The engine calls this the instant it resolves an outcome (mid-wait,
-        not just once wait() returns); translate and forward it right away."""
-        for event in self._motions.resolve([outcome]):
-            self._events.publish(event)
+        not just once wait() returns); reconcile bookkeeping and forward the
+        translated event right away."""
+        self._motions.reconcile(outcome)
+        self._events.publish(translate(outcome))
 
     @property
     def game_over(self) -> bool:

@@ -1,16 +1,12 @@
 """Owns pending-motion bookkeeping for GameFacade: predicting where an
-in-flight piece should be drawn, and translating GameEngine.wait()'s
-resolved outcomes into the state/game_events.py types log/score panels
-subscribe to.
+in-flight piece should be drawn, reconciled away once GameEngine reports
+the motion resolved (see state/outcome_translator.py for turning that
+resolution into a UI-facing event - a separate concern from bookkeeping).
 
 Split out of GameFacade so GameFacade itself only has to coordinate the
 engine + this tracker + the event stream, instead of also being the one
 holding and mutating the pending-motion dict directly.
 """
-
-from engine.game_engine import Arrived, Captured, Halted, Promoted
-
-from state.game_events import PieceArrived, PieceCaptured, PieceHalted, Promotion
 
 
 class PendingMotion:
@@ -42,8 +38,8 @@ class PendingMotion:
 
 
 class MotionTracker:
-    """Pure bookkeeping - no Subject/publish dependency, so it's testable with
-    plain outcome objects in, translated event list out."""
+    """Pure bookkeeping - no Subject/publish or event-translation dependency,
+    so it's testable with plain outcome objects in, pending-dict state out."""
 
     def __init__(self):
         self._pending: dict = {}
@@ -62,9 +58,9 @@ class MotionTracker:
 
     def _drop_expired(self) -> None:
         """Drop any motion whose predicted travel time has fully elapsed
-        without GameFacade ever reconciling it via resolve().
+        without GameFacade ever reconciling it via reconcile().
 
-        Normally resolve() removes a motion the same tick its progress hits
+        Normally reconcile() removes a motion the same tick its progress hits
         1.0, since duration_ms is derived from the same constants the server
         times its own motion with. But a motion the engine silently rejected
         (or otherwise never resolves - e.g. a jump onto a square another
@@ -77,28 +73,8 @@ class MotionTracker:
         for source in expired:
             del self._pending[source]
 
-    def resolve(self, outcomes) -> list:
-        """Drop the pending motion each engine outcome resolved (if any - an
+    def reconcile(self, outcome) -> None:
+        """Drop the pending motion this engine outcome resolved, if any - an
         outcome may come from a motion this tracker never tracked, e.g. one
-        started directly on the engine), and return the matching UI events."""
-        events = []
-        for outcome in outcomes:
-            self._pending.pop(outcome.source, None)
-            events.append(_translate(outcome))
-        return events
-
-
-_TRANSLATORS = {
-    Arrived: lambda o: PieceArrived(source=o.source, destination=o.destination, token=o.token, is_jump=o.is_jump),
-    Captured: lambda o: PieceCaptured(position=o.position, captured_token=o.captured_token, by_token=o.by_token,
-                                       is_jump=o.is_jump),
-    Halted: lambda o: PieceHalted(source=o.source, resting_at=o.resting_at, token=o.token, is_jump=o.is_jump),
-    Promoted: lambda o: Promotion(position=o.position, from_token=o.from_token, to_token=o.to_token,
-                                   is_jump=o.is_jump),
-}
-
-
-def _translate(outcome):
-    """Turn one of GameEngine.wait()'s domain outcomes into the matching
-    state/game_events.py type that log/score panels actually subscribe to."""
-    return _TRANSLATORS[type(outcome)](outcome)
+        started directly on the engine."""
+        self._pending.pop(outcome.source, None)
