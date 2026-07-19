@@ -63,3 +63,32 @@ def test_blocked_path_is_invalid():
     result = engine.validate_move(b, Position(0, 0), Position(0, 2))
     assert not result.is_valid
     assert result.reason == "illegal_piece_move"
+
+
+# ── legal_destinations (move-hint highlighting) ──────────────────────────────
+
+def test_legal_destinations_for_a_rook_on_an_empty_board():
+    b = board_from(["wR . .", ". . .", ". . ."])
+    assert engine.legal_destinations(b, Position(0, 0)) == {
+        Position(0, 1), Position(0, 2), Position(1, 0), Position(2, 0),
+    }
+
+
+def test_legal_destinations_includes_a_capturable_enemy():
+    b = board_from(["wR . bP", ". . .", ". . ."])
+    assert Position(0, 2) in engine.legal_destinations(b, Position(0, 0))
+
+
+def test_legal_destinations_excludes_a_friendly_piece():
+    b = board_from(["wR wP .", ". . .", ". . ."])
+    assert Position(0, 1) not in engine.legal_destinations(b, Position(0, 0))
+
+
+def test_legal_destinations_empty_for_empty_source():
+    b = board_from(["wR . .", ". . .", ". . ."])
+    assert engine.legal_destinations(b, Position(1, 1)) == set()
+
+
+def test_legal_destinations_empty_for_out_of_bounds_source():
+    b = board_from(["wR . .", ". . .", ". . ."])
+    assert engine.legal_destinations(b, Position(9, 9)) == set()

@@ -183,26 +183,27 @@ def test_opposite_colors_move_concurrently_extra_route():
 # ── Collision between moving pieces ──────────────────────────────────────────
 
 def test_head_on_paths_only_earlier_move_is_destroyed():
-    # wR moved first (earlier -> destroyed); bR moved second (later -> survives), but its
-    # own arrival still expected "wR" at (0,0), which the collision already cleared, so
-    # bR's arrival is cancelled and it's left sitting at (0,4).
+    # wR moved first (earlier -> destroyed); bR moved second (later -> survives)
+    # and, with its own square now empty (wR just died there), lands normally at (0,0).
     assert run(
         "Board:\nwR . . . bR\nCommands:\n"
         "click 50 50\nclick 450 50\n"
         "click 450 50\nclick 50 50\n"
         "wait 4000\nprint board"
-    ) == ". . . . bR"
+    ) == "bR . . . ."
 
 
-# ── Cancel when target is captured before arrival ────────────────────────────
+# ── Arrival is evaluated against the board as it actually is ─────────────────
 
-def test_capture_cancelled_when_target_vacates_before_arrival():
+def test_move_lands_normally_when_its_target_vacates_before_arrival():
+    # wR headed for bQ's square; bQ moves away before wR arrives, so wR just
+    # lands normally on the now-empty square instead of capturing anything.
     assert run(
         "Board:\nwR . bQ\n. . .\n. . .\nCommands:\n"
         "click 50 50\nclick 250 50\n"
         "click 250 50\nclick 250 150\n"
         "wait 2000\nprint board"
-    ) == "wR . .\n. . bQ\n. . ."
+    ) == ". . wR\n. . bQ\n. . ."
 
 
 # ── Cooldown after arrival ────────────────────────────────────────────────────
@@ -234,11 +235,16 @@ def test_no_moves_after_game_over():
 
 
 def test_enemy_collision_white_started_first():
-    assert run("Board:\nwR . . bR\nCommands:\nclick 50 50\nclick 350 50\nclick 350 50\nclick 50 50\nwait 3000\nprint board") == ". . . wR"
+    # 3 cells apart (odd): same pattern as test_head_on_paths_only_earlier_move_is_destroyed
+    # (which uses an even distance) - wR moved first (earlier -> destroyed); bR moved
+    # second (later -> survives) and lands normally at (0,0).
+    assert run("Board:\nwR . . bR\nCommands:\nclick 50 50\nclick 350 50\nclick 350 50\nclick 50 50\nwait 3000\nprint board") == "bR . . ."
 
 
 def test_enemy_collision_black_started_first():
-    assert run("Board:\nwR . . bR\nCommands:\nclick 350 50\nclick 50 50\nclick 50 50\nclick 350 50\nwait 3000\nprint board") == "bR . . ."
+    # Same as above with request order reversed: bR moved first (earlier -> destroyed);
+    # wR moved second (later -> survives) and lands normally at (0,3).
+    assert run("Board:\nwR . . bR\nCommands:\nclick 350 50\nclick 50 50\nclick 50 50\nclick 350 50\nwait 3000\nprint board") == ". . . wR"
 
 
 

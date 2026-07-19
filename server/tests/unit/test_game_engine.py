@@ -16,6 +16,14 @@ def test_valid_move_accepted():
     assert result.reason == "ok"
 
 
+def test_legal_destinations_delegates_to_the_rule_engine():
+    b = board_from(["wR . .", ". . .", ". . ."])
+    engine = GameEngine(b)
+    assert engine.legal_destinations(Position(0, 0)) == {
+        Position(0, 1), Position(0, 2), Position(1, 0), Position(2, 0),
+    }
+
+
 def test_invalid_move_rejected():
     b = board_from(["wR . .", ". . .", ". . ."])
     engine = GameEngine(b)
@@ -94,13 +102,14 @@ def test_arrival_skipped_when_piece_no_longer_at_source():
     assert b.get_piece(Position(0, 2)) == EMPTY
 
 
-def test_arrival_skipped_when_friendly_at_destination():
+def test_arrival_backs_off_when_friendly_at_destination():
     b = board_from(["wR . wP", ". . .", ". . ."])
     engine = GameEngine(b)
     # force a motion directly on arbiter to bypass rule check
     engine._arbiter.start_motion("wR", Position(0, 0), Position(0, 2))
     engine.wait(2000)
-    assert b.get_piece(Position(0, 0)) == "wR"
+    assert b.get_piece(Position(0, 0)) == EMPTY
+    assert b.get_piece(Position(0, 1)) == "wR"  # backs off to the cell before the blocked destination
     assert b.get_piece(Position(0, 2)) == "wP"
     b = board_from(["wR . .", ". . .", ". . ."])
     engine = GameEngine(b)
@@ -369,25 +378,64 @@ def test_move_cooldown_is_longer_than_jump_cooldown():
     assert still_cooling.reason == "cooldown"
 
 
-def test_capture_cancelled_when_target_changes_before_arrival():
+def test_capture_targets_whoever_is_actually_there_on_arrival():
+    # wR heads toward what it saw as bN at request time - a different enemy
+    # (bB) takes the cell before wR arrives; wR still captures whoever's
+    # actually there now, not the originally-seen bN.
     b = board_from(["wR . bN", ". . .", ". . ."])
     engine = GameEngine(b)
-    engine.request_move(Position(0, 0), Position(0, 2))  # wR commits to capturing bN
+    engine.request_move(Position(0, 0), Position(0, 2))
     b.replace_piece(Position(0, 2), EMPTY)
-    b.replace_piece(Position(0, 2), "bB")  # a different enemy piece takes the cell first
+    b.replace_piece(Position(0, 2), "bB")
     engine.wait(2000)
-    assert b.get_piece(Position(0, 0)) == "wR"  # motion cancelled, wR stayed put
-    assert b.get_piece(Position(0, 2)) == "bB"  # bB untouched
+    assert b.get_piece(Position(0, 0)) == EMPTY
+    assert b.get_piece(Position(0, 2)) == "wR"
 
 
-def test_move_to_empty_square_cancelled_when_occupied_before_arrival():
+def test_move_to_empty_square_captures_an_enemy_that_arrived_there_first():
+    # No specific capture was ever intended (the square was empty when the
+    # move was accepted) - an enemy beating you there is the same same-square
+    # race the mid-flight collision system resolves elsewhere: later arrival wins.
     b = board_from(["wR . .", ". . .", ". . ."])
     engine = GameEngine(b)
     engine.request_move(Position(0, 0), Position(0, 2))  # target empty when accepted
-    b.replace_piece(Position(0, 2), "bP")  # someone else got there first
+    b.replace_piece(Position(0, 2), "bP")  # an enemy got there first
     engine.wait(2000)
+    assert b.get_piece(Position(0, 0)) == EMPTY
+    assert b.get_piece(Position(0, 2)) == "wR"  # wR arrives later and captures bP
+
+
+def test_move_to_empty_square_backs_off_when_a_friendly_piece_arrives_first():
+    b = board_from(["wR . .", ". . .", ". . ."])
+    engine = GameEngine(b)
+    engine.request_move(Position(0, 0), Position(0, 2))  # target empty when accepted
+    b.replace_piece(Position(0, 2), "wN")  # a friendly piece got there first
+    engine.wait(2000)
+    assert b.get_piece(Position(0, 0)) == EMPTY
+    assert b.get_piece(Position(0, 1)) == "wR"  # backs off to the cell before the blocked destination
+    assert b.get_piece(Position(0, 2)) == "wN"  # wN untouched
+
+
+def test_adjacent_move_cancels_when_a_friendly_piece_arrives_first():
+    # Only 1 cell away - no cell before the destination to back off to.
+    b = board_from(["wR . .", ". . .", ". . ."])
+    engine = GameEngine(b)
+    engine.request_move(Position(0, 0), Position(0, 1))
+    b.replace_piece(Position(0, 1), "wN")
+    engine.wait(1000)
     assert b.get_piece(Position(0, 0)) == "wR"
-    assert b.get_piece(Position(0, 2)) == "bP"
+    assert b.get_piece(Position(0, 1)) == "wN"
+
+
+def test_knight_shaped_move_cancels_when_a_friendly_piece_arrives_first():
+    # No path at all to back off along (see Motion.is_straight_line).
+    b = board_from(["wN . . .", ". . . .", ". . . ."])
+    engine = GameEngine(b)
+    engine.request_move(Position(0, 0), Position(1, 2))
+    b.replace_piece(Position(1, 2), "wR")
+    engine.wait(2000)
+    assert b.get_piece(Position(0, 0)) == "wN"
+    assert b.get_piece(Position(1, 2)) == "wR"
 
 
 def test_capture_proceeds_when_target_unchanged():
@@ -400,16 +448,16 @@ def test_capture_proceeds_when_target_unchanged():
 
 
 def test_colliding_pieces_are_removed_from_board():
-    # wR requested first (earlier -> destroyed); bR requested second (later -> survives),
-    # but bR's own arrival still expected "wR" at (0,0), which the collision already
-    # cleared, so bR's arrival is cancelled and it's left sitting at (0,4).
+    # wR requested first (earlier -> destroyed); bR requested second (later ->
+    # survives) and, with its own square now empty (wR just died there),
+    # lands normally at (0,0).
     b = board_from(["wR . . . bR", ". . . . .", ". . . . ."])
     engine = GameEngine(b)
     engine.request_move(Position(0, 0), Position(0, 4))
     engine.request_move(Position(0, 4), Position(0, 0))
     engine.wait(4000)
-    assert b.get_piece(Position(0, 0)) == EMPTY
-    assert b.get_piece(Position(0, 4)) == "bR"
+    assert b.get_piece(Position(0, 0)) == "bR"
+    assert b.get_piece(Position(0, 4)) == EMPTY
 
 
 def test_collision_skipped_when_piece_no_longer_at_position():
@@ -425,7 +473,7 @@ def test_collision_skipped_when_piece_no_longer_at_position():
 
 def test_king_destroyed_in_collision_ends_game():
     # wK started first (earlier -> destroyed, ends the game); bR started second
-    # (later -> survives) and, with no expected_target to veto it, lands at (0,0).
+    # (later -> survives) and lands normally at (0,0).
     b = board_from(["wK . . . bR", ". . . . .", ". . . . ."])
     engine = GameEngine(b)
     engine._arbiter.start_motion("wK", Position(0, 0), Position(0, 4))
@@ -535,22 +583,22 @@ def test_wait_reports_arrived_for_a_deliberate_in_place_jump():
     assert outcomes == [Arrived(Position(0, 0), Position(0, 0), "wR", is_jump=True)]
 
 
-def test_wait_reports_no_outcome_for_a_stale_target_cancellation():
+def test_wait_reports_the_capture_of_whoever_is_actually_there():
     b = board_from(["wR . bN", ". . .", ". . ."])
     engine = GameEngine(b)
     engine.request_move(Position(0, 0), Position(0, 2))
     b.replace_piece(Position(0, 2), EMPTY)
     b.replace_piece(Position(0, 2), "bB")
     outcomes = engine.wait(2000)
-    assert outcomes == []
+    assert outcomes == [Captured(source=Position(0, 0), position=Position(0, 2), captured_token="bB", by_token="wR")]
 
 
-def test_wait_reports_no_outcome_when_blocked_by_a_friendly_at_destination():
+def test_wait_reports_a_halt_when_blocked_by_a_friendly_at_destination():
     b = board_from(["wR . wP", ". . .", ". . ."])
     engine = GameEngine(b)
     engine._arbiter.start_motion("wR", Position(0, 0), Position(0, 2))
     outcomes = engine.wait(2000)
-    assert outcomes == []
+    assert outcomes == [Halted(source=Position(0, 0), resting_at=Position(0, 1), token="wR")]
 
 
 # ── subscribe()/publish() ─────────────────────────────────────────────────────

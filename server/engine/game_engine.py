@@ -125,9 +125,14 @@ class GameEngine:
         if not validation.is_valid:
             return MoveResult(False, validation.reason)
         token = self._board.get_piece(source)
-        expected_target = self._board.get_piece(destination)
-        self._arbiter.start_motion(token, source, destination, expected_target=expected_target)
+        self._arbiter.start_motion(token, source, destination)
         return MoveResult(True, "ok")
+
+    def legal_destinations(self, source: Position) -> set:
+        """All destinations source's piece could legally move to right now,
+        for UI move-hint highlighting - not itself a move request, so it
+        doesn't check game_over/motion/cooldown the way request_move does."""
+        return self._rule_engine.legal_destinations(self._board, source)
 
     def wait(self, ms: int) -> list:
         """Advance real-time motion by ms, apply any collisions/arrivals that
@@ -168,11 +173,18 @@ class GameEngine:
         return GameSnapshot(self._board, self._game_over)
 
     def _apply_arrival(self, event):
-        """Apply a piece's arrival at its destination: capture, promotion, or cancel if preempted."""
+        """Apply a piece's arrival at its destination: capture, promotion, or
+        halt short of it if a friendly piece already claimed the square.
+
+        Evaluated purely against the board as it is right now - not against
+        whatever was there when the move was first requested. A real-time
+        race for the same square is resolved the same way regardless of
+        which piece's move happens to finish processing first: later arrival
+        captures an enemy already there, and is blocked by (backs off from) a
+        friendly one, exactly like the mid-flight near-miss case below.
+        """
         src, dst = event.src, event.dst
         if self._board.get_piece(src) != event.piece_token:
-            return None
-        if event.expected_target is not None and self._board.get_piece(dst) != event.expected_target:
             return None
         if src == dst:
             # A move redirected/halted back to its own source never actually
@@ -187,7 +199,7 @@ class GameEngine:
             return None
         target = self._board.get_piece(dst)
         if target != EMPTY and target[0] == event.piece_token[0] and not event.is_jump:
-            return None
+            return self._halt_before_friendly(event.piece_token, src, dst)
         airborne = event.airborne_dsts
         if dst in airborne and airborne[dst][0] != event.piece_token[0]:
             self._board.replace_piece(src, EMPTY)
@@ -214,3 +226,24 @@ class GameEngine:
             return Captured(source=src, position=dst, captured_token=target, by_token=event.piece_token,
                              is_jump=event.is_jump)
         return Arrived(source=src, destination=dst, token=event.piece_token, is_jump=event.is_jump)
+
+    def _halt_before_friendly(self, token: str, src: Position, dst: Position):
+        """Back off to the last cell before dst, the same way a mid-flight
+        same-color near-miss does - unless there's no meaningful cell to back
+        off to (an adjacent-cell move, or a knight-shaped move with no path
+        at all), in which case this just cancels."""
+        backoff = self._cell_before(src, dst)
+        if backoff is None:
+            return None
+        self._board.move_piece(src, backoff)
+        self._arbiter.start_cooldown(backoff, MOVE_COOLDOWN_MS)
+        return Halted(source=src, resting_at=backoff, token=token)
+
+    @staticmethod
+    def _cell_before(src: Position, dst: Position) -> Position | None:
+        dr, dc = dst.row - src.row, dst.col - src.col
+        distance = max(abs(dr), abs(dc))
+        if distance <= 1 or not (dr == 0 or dc == 0 or abs(dr) == abs(dc)):
+            return None
+        step_r, step_c = (dr > 0) - (dr < 0), (dc > 0) - (dc < 0)
+        return Position(src.row + step_r * (distance - 1), src.col + step_c * (distance - 1))

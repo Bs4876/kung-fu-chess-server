@@ -175,6 +175,17 @@ def test_path_positions_empty_for_knight_shaped_motion():
     assert m.path_positions() == []
 
 
+def test_straight_line_meeting_time_is_none_when_either_motion_is_knight_shaped():
+    from realtime.motion import straight_line_meeting_time
+    # Both start at the exact same cell at the exact same instant - as
+    # obvious a "collision" as two paths can share, if evaluated as plain
+    # straight lines - yet still None, since a knight has no path at all.
+    knight = Motion("wN", Position(0, 0), Position(2, 1), start_time=0)
+    other = Motion("bR", Position(0, 0), Position(0, 3), start_time=0)
+    assert straight_line_meeting_time(knight, other) is None
+    assert straight_line_meeting_time(other, knight) is None
+
+
 # ── Collision between moving pieces ──────────────────────────────────────────
 #
 # Different colors crossing paths: the motion that started later survives and
@@ -245,13 +256,41 @@ def test_same_color_collision_on_first_step_halts_at_source():
     assert halted.dst == Position(0, 2)  # no safe cell reached yet, halts at its own source
 
 
-def test_odd_distance_head_on_paths_do_not_collide():
+def test_odd_distance_head_on_paths_still_collide_between_cell_centers():
+    # 3 cells apart, same speed, head-on: they'd cross at col 1.5 (t=1500) -
+    # never both resting on the same integer cell at the same integer tick,
+    # but their continuous paths still genuinely cross each other.
+    arb = RealTimeArbiter()
+    arb.start_motion("wR", Position(0, 0), Position(0, 3))  # started first -> earlier, dies
+    arb.start_motion("bR", Position(0, 3), Position(0, 0))  # started second -> later, survives
+    events = arb.advance_time(3000)
+    collisions = [e for e in events if isinstance(e, CollisionEvent)]
+    arrivals = [e for e in events if isinstance(e, ArrivalEvent)]
+    assert {e.piece_token for e in collisions} == {"wR"}
+    assert {e.piece_token for e in arrivals} == {"bR"}
+
+
+def test_odd_distance_head_on_collision_fires_exactly_at_the_crossing_tick():
     arb = RealTimeArbiter()
     arb.start_motion("wR", Position(0, 0), Position(0, 3))
     arb.start_motion("bR", Position(0, 3), Position(0, 0))
-    events = arb.advance_time(3000)
-    assert len(events) == 2
-    assert all(isinstance(e, ArrivalEvent) for e in events)
+    events = arb.advance_time(1499)
+    assert events == []
+    events = arb.advance_time(1)  # crosses t=1500, the midpoint between col 1 and col 2
+    assert len(events) == 1
+    assert isinstance(events[0], CollisionEvent)
+
+
+def test_odd_distance_same_color_paths_halt_at_the_last_safe_cell():
+    arb = RealTimeArbiter()
+    arb.start_motion("wR", Position(0, 0), Position(0, 3))  # started first -> earlier, unaffected
+    arb.start_motion("wB", Position(0, 3), Position(0, 0))  # started second -> halts before crossing at t=1500
+    events = arb.advance_time(1500)
+    assert len(events) == 1
+    halted = events[0]
+    assert halted.piece_token == "wB"
+    assert halted.dst == Position(0, 2)  # 1 full cell traveled (col 3 -> 2) before the col-1.5 crossing
+    assert arb.has_active_motion_for(Position(0, 0))  # wR unaffected, still en route to (0,3)
 
 
 def test_unrelated_motions_do_not_collide():
@@ -261,22 +300,6 @@ def test_unrelated_motions_do_not_collide():
     events = arb.advance_time(1000)
     assert len(events) == 2
     assert all(isinstance(e, ArrivalEvent) for e in events)
-
-
-# ── Target-changed cancellation (expected_target) ────────────────────────────
-
-def test_start_motion_without_expected_target_defaults_to_none():
-    arb = RealTimeArbiter()
-    arb.start_motion("wR", Position(0, 0), Position(0, 1))
-    events = arb.advance_time(1000)
-    assert events[0].expected_target is None
-
-
-def test_start_motion_propagates_expected_target_to_arrival_event():
-    arb = RealTimeArbiter()
-    arb.start_motion("wR", Position(0, 0), Position(0, 1), expected_target="bP")
-    events = arb.advance_time(1000)
-    assert events[0].expected_target == "bP"
 
 
 # ── Cooldown after arrival ────────────────────────────────────────────────────
