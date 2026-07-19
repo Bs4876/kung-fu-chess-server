@@ -1,6 +1,7 @@
 import server_bridge  # noqa: F401  (must run before any server-rooted import below)
 
 import ui_config
+import user_settings
 from animation.animation_clock import Clock
 from chess_io.board_parser import BoardParser
 from config import CELL_SIZE
@@ -47,7 +48,7 @@ def build_controller(facade: GameFacade, mapper: BoardMapper) -> Controller:
 
 def build_render_stack() -> tuple[BoardRenderer, HudRenderer]:
     """Build both renderers, sharing one sprite loader sized to CELL_SIZE."""
-    sprite_loader = SpriteLoader(ui_config.ASSETS_DIR, ui_config.SKIN, CELL_SIZE)
+    sprite_loader = SpriteLoader(ui_config.ASSETS_DIR, user_settings.SKIN, CELL_SIZE)
     renderer = BoardRenderer(sprite_loader, CELL_SIZE)
     hud = HudRenderer(sprite_loader)
     return renderer, hud
@@ -73,7 +74,7 @@ def main() -> None:
     facade.subscribe_moves(sound_player.handle_event)
     facade.subscribe_outcomes(sound_player.handle_event)
     facade.subscribe_game_over(sound_player.handle_event)
-    player_labels = PlayerLabels()
+    player_labels = PlayerLabels(user_settings.WHITE_NAME, user_settings.BLACK_NAME)
 
     renderer, hud = build_render_stack()
     window = Window(ui_config.WINDOW_TITLE)
@@ -97,14 +98,20 @@ def main() -> None:
         sound_player.tick(dt_ms)
         snapshot = facade.tick(dt_ms)
 
+        selected = controller.selected
+        legal_move_cells, legal_capture_cells = (
+            facade.legal_destinations(selected) if selected is not None else ([], [])
+        )
         board_canvas = renderer.render(
             snapshot,
             dt_ms,
-            selected=controller.selected,
+            selected=selected,
             pending_motions=facade.pending_motions(),
             halted_positions=halt_flash.active_positions(),
             game_over=game_over_banner.is_game_over,
             cooldown_fade_fractions=cooldown_tracker.active_fade_frames(),
+            legal_move_cells=legal_move_cells,
+            legal_capture_cells=legal_capture_cells,
         )
         scene = hud.compose(board_canvas, moves_log_panel, score_panel, player_labels)
         window.show_frame(scene)

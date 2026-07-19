@@ -20,6 +20,9 @@ class FakeSpriteSource:
     def load_cooldown_fade_frame(self, fraction):
         return FakeOverlay(f"cooldown_fade_{fraction}")
 
+    def load_legal_destination_highlight(self, is_capture):
+        return FakeOverlay("legal_capture" if is_capture else "legal_move")
+
 
 class FakeCanvas:
     def __init__(self, height=800):
@@ -87,6 +90,22 @@ def test_one_cooldown_fade_is_drawn_per_position():
     assert canvas.draws == [("cooldown_fade_0.0", 0, 200), ("cooldown_fade_1.0", 100, 0)]
 
 
+def test_legal_move_cells_are_drawn_green():
+    overlays = build()
+    canvas = FakeCanvas()
+    overlays.draw(canvas, selected=None, halted_positions=[], cooldown_fade_fractions={}, game_over=False,
+                   legal_move_cells=[Position(0, 1), Position(1, 0)])
+    assert canvas.draws == [("legal_move", 100, 0), ("legal_move", 0, 100)]
+
+
+def test_legal_capture_cells_are_drawn_red():
+    overlays = build()
+    canvas = FakeCanvas()
+    overlays.draw(canvas, selected=None, halted_positions=[], cooldown_fade_fractions={}, game_over=False,
+                   legal_capture_cells=[Position(2, 0)])
+    assert canvas.draws == [("legal_capture", 0, 200)]
+
+
 def test_game_over_banner_is_drawn_only_when_game_is_over():
     overlays = build()
     canvas = FakeCanvas()
@@ -105,6 +124,13 @@ def test_all_overlays_can_be_drawn_together_in_order():
     overlays = build()
     canvas = FakeCanvas()
     overlays.draw(canvas, selected=Position(0, 0), halted_positions=[Position(1, 1)],
-                   cooldown_fade_fractions={Position(2, 2): 0.0}, game_over=True)
-    assert canvas.draws == [("selection", 0, 0), ("halt_flash", 100, 100), ("cooldown_fade_0.0", 200, 200)]
+                   cooldown_fade_fractions={Position(2, 2): 0.0}, game_over=True,
+                   legal_move_cells=[Position(0, 3)], legal_capture_cells=[Position(3, 0)])
+    assert canvas.draws == [
+        ("selection", 0, 0),
+        ("legal_move", 300, 0),
+        ("legal_capture", 0, 300),
+        ("halt_flash", 100, 100),
+        ("cooldown_fade_0.0", 200, 200),
+    ]
     assert canvas.texts == [("GAME OVER", 100, 400)]

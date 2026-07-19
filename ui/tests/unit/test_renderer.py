@@ -48,6 +48,9 @@ class FakeSpriteSource:
     def load_cooldown_fade_frame(self, fraction):
         return FakeDrawable(f"cooldown_fade_{fraction}")
 
+    def load_legal_destination_highlight(self, is_capture):
+        return FakeDrawable("legal_capture" if is_capture else "legal_move")
+
     def load_state_config(self, token, state):
         return config()
 
@@ -85,6 +88,13 @@ def test_render_draws_the_selection_highlight_after_the_pieces():
     renderer = build()
     canvas = renderer.render(FakeSnapshot({Position(0, 0): "wR"}), dt_ms=16, selected=Position(0, 0))
     assert canvas.draws == [("wR_idle_1", 0, 0), ("selection", 0, 0)]
+
+
+def test_render_draws_legal_move_and_capture_hints():
+    renderer = build()
+    canvas = renderer.render(FakeSnapshot({}), dt_ms=16,
+                             legal_move_cells=[Position(0, 1)], legal_capture_cells=[Position(1, 0)])
+    assert canvas.draws == [("legal_move", 100, 0), ("legal_capture", 0, 100)]
 
 
 def test_render_draws_the_game_over_banner():

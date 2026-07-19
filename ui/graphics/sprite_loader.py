@@ -2,6 +2,8 @@
 
 import json
 
+import numpy as np
+
 import ui_config
 from vendor.img import Img
 
@@ -79,7 +81,6 @@ class SpriteLoader:
         snapping a whole pixel row at a time, so the drain reads as a smooth
         motion rather than visibly stepping row by row.
         """
-        import numpy as np
         size = self._cell_size
         exact_filled = size * (1.0 - fraction)
         filled_rows = int(exact_filled)
@@ -103,6 +104,25 @@ class SpriteLoader:
 
         img = Img()
         img.img = overlay
+        return img
+
+    def load_legal_destination_highlight(self, is_capture: bool) -> Img:
+        """A flat translucent overlay marking a square the currently-selected
+        piece could legally move to - red if landing there would capture an
+        enemy, green if it's just empty. Generated once per cell_size and
+        cached the same way as the on-disk statics (see _load_static)."""
+        cache_key = ("legal_capture" if is_capture else "legal_move", self._cell_size)
+        if cache_key not in self._static_image_cache:
+            size = self._cell_size
+            color = ui_config.LEGAL_CAPTURE_COLOR if is_capture else ui_config.LEGAL_MOVE_COLOR
+            overlay = np.zeros((size, size, 4), dtype=np.uint8)
+            overlay[:, :, 0] = color[0]
+            overlay[:, :, 1] = color[1]
+            overlay[:, :, 2] = color[2]
+            overlay[:, :, 3] = ui_config.LEGAL_DESTINATION_ALPHA
+            self._static_image_cache[cache_key] = overlay
+        img = Img()
+        img.img = self._static_image_cache[cache_key].copy()
         return img
 
     def load_state_config(self, token: str, state: str) -> StateConfig:

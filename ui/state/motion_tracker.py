@@ -19,6 +19,7 @@ class PendingMotion:
     """
 
     def __init__(self, source, destination, token: str, duration_ms: float, is_jump: bool):
+        
         self.source = source
         self.destination = destination
         self.token = token

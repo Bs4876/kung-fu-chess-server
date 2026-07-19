@@ -25,6 +25,15 @@ def events_from(facade: GameFacade) -> list:
     return received
 
 
+def test_legal_destinations_splits_empty_from_capturable():
+    facade = facade_for("wQ . bP . . . . .\n" + ". . . . . . . .\n" * 7)
+    empty_cells, capturable_cells = facade.legal_destinations(Position(0, 0))
+    assert Position(0, 2) in capturable_cells
+    assert Position(0, 2) not in empty_cells
+    assert Position(0, 1) in empty_cells
+    assert Position(0, 1) not in capturable_cells
+
+
 def test_request_move_predicts_duration_from_server_config_not_a_guess():
     facade = facade_for("wQ . . . . . . .\n" + ". . . . . . . .\n" * 7)
     result = facade.request_move(Position(0, 0), Position(0, 3))

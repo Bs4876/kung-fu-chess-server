@@ -11,6 +11,7 @@ import winsound
 from config import MOVE_TRAVEL_TIME_PER_CELL
 
 import ui_config
+import user_settings
 from state.game_events import GameOver, MoveAccepted, MoveRejected, PieceCaptured, Promotion
 
 _SOUND_FOR_EVENT = {
@@ -23,7 +24,8 @@ _SOUND_FOR_EVENT = {
 
 
 def _play(path) -> None:
-    winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
+    if user_settings.SOUND_ENABLED:
+        winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
 
 
 class _Footsteps:

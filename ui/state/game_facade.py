@@ -80,6 +80,16 @@ class GameFacade:
         """Read-only view of in-flight motions, keyed by their source cell."""
         return self._motions.pending()
 
+    def legal_destinations(self, source) -> tuple[list, list]:
+        """(empty_cells, capturable_cells): source's piece's legal
+        destinations right now, split by whether landing there would capture
+        something - for move-hint highlighting, not itself a move request."""
+        destinations = self._engine.legal_destinations(source)
+        snapshot = self._engine.snapshot()
+        empty_cells = [pos for pos in destinations if snapshot.get_piece(pos) == EMPTY]
+        capturable_cells = [pos for pos in destinations if snapshot.get_piece(pos) != EMPTY]
+        return empty_cells, capturable_cells
+
     def request_move(self, source, destination):
         result = self._engine.request_move(source, destination)
         if result.is_accepted:
