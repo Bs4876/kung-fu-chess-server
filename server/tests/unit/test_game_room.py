@@ -67,6 +67,19 @@ async def test_illegal_move_broadcasts_move_rejected():
     assert socket.sent[-1]["reason"] == "illegal_piece_move"
 
 
+async def test_jump_broadcasts_jump_started_to_every_seated_player():
+    room = GameRoom("1", board_from(["wR . .", ". . .", ". . ."]), EventBus())
+    white, black = FakeSocket(), FakeSocket()
+    room.join(white)
+    room.join(black)
+
+    room.handle_request_jump({"source": {"row": 0, "col": 0}, "destination": {"row": 2, "col": 2}})
+    await _flush()
+
+    for socket in (white, black):
+        assert socket.sent[-1]["type"] == protocol.JUMP_STARTED
+
+
 async def test_arrival_increments_state_version_and_broadcasts_the_outcome():
     room = GameRoom("1", board_from(["wR . .", ". . .", ". . ."]), EventBus())
     socket = FakeSocket()

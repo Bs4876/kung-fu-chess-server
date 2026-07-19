@@ -19,6 +19,7 @@ REQUEST_JUMP = "request_jump"
 GAME_START = "game_start"
 MOVE_ACCEPTED = "move_accepted"
 MOVE_REJECTED = "move_rejected"
+JUMP_STARTED = "jump_started"
 ARRIVED = "arrived"
 CAPTURED = "captured"
 HALTED = "halted"
@@ -49,7 +50,7 @@ def position_from_wire(data: dict) -> Position:
     return Position(data["row"], data["col"])
 
 
-def _position_to_wire(pos: Position) -> dict:
+def position_to_wire(pos: Position) -> dict:
     return {"row": pos.row, "col": pos.col}
 
 
@@ -69,6 +70,37 @@ def game_start(game_id: str, color: str, state_version: int, snapshot) -> dict:
     }
 
 
+def request_move(game_id: str, source: Position, destination: Position) -> dict:
+    return {
+        "type": REQUEST_MOVE,
+        "game_id": game_id,
+        "source": position_to_wire(source),
+        "destination": position_to_wire(destination),
+    }
+
+
+def request_jump(game_id: str, source: Position, destination: Position) -> dict:
+    return {
+        "type": REQUEST_JUMP,
+        "game_id": game_id,
+        "source": position_to_wire(source),
+        "destination": position_to_wire(destination),
+    }
+
+
+def jump_started(game_id: str, source: Position, destination: Position) -> dict:
+    """Broadcast the instant a jump is requested - request_jump has no
+    accept/reject signal from the engine (see GameEngine.request_jump), so
+    unlike move_result this always fires, whether or not the engine ends up
+    silently ignoring the jump (already moving, on cooldown, out of bounds)."""
+    return {
+        "type": JUMP_STARTED,
+        "game_id": game_id,
+        "source": position_to_wire(source),
+        "destination": position_to_wire(destination),
+    }
+
+
 def move_result(game_id: str, source: Position, destination: Position, result) -> dict:
     """Build move_accepted/move_rejected from the engine's MoveResult (duck-typed
     on is_accepted/reason, so this module doesn't need to import that class)."""
@@ -76,8 +108,8 @@ def move_result(game_id: str, source: Position, destination: Position, result) -
     return {
         "type": message_type,
         "game_id": game_id,
-        "source": _position_to_wire(source),
-        "destination": _position_to_wire(destination),
+        "source": position_to_wire(source),
+        "destination": position_to_wire(destination),
         "reason": result.reason,
     }
 
@@ -87,7 +119,7 @@ def outcome(message_type: str, game_id: str, state_version: int, engine_outcome)
     dataclasses (Arrived/Captured/Halted/Promoted), translating its Position
     fields to wire coordinates and adding routing metadata."""
     fields = {
-        key: (_position_to_wire(value) if isinstance(value, Position) else value)
+        key: (position_to_wire(value) if isinstance(value, Position) else value)
         for key, value in vars(engine_outcome).items()
     }
     return {"type": message_type, "game_id": game_id, "state_version": state_version, **fields}

@@ -73,6 +73,7 @@ class GameRoom:
         source = protocol.position_from_wire(message["source"])
         destination = protocol.position_from_wire(message["destination"])
         self._engine.request_jump(source, destination)
+        self._broadcast(protocol.jump_started(self.game_id, source, destination))
 
     async def _tick_loop(self) -> None:
         while not self._engine.game_over:

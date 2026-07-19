@@ -31,7 +31,7 @@ def test_decode_rejects_missing_type():
 
 def test_position_round_trips_through_wire_dict():
     pos = Position(2, 5)
-    assert protocol.position_from_wire(protocol._position_to_wire(pos)) == pos
+    assert protocol.position_from_wire(protocol.position_to_wire(pos)) == pos
 
 
 def test_snapshot_to_wire_includes_board_rows():
@@ -47,6 +47,36 @@ def test_game_start_message_shape():
     assert message["color"] == "white"
     assert message["state_version"] == 0
     assert message["snapshot"]["board"] == [["wR"]]
+
+
+def test_request_move_message_shape():
+    message = protocol.request_move("1", Position(0, 0), Position(0, 2))
+    assert message == {
+        "type": protocol.REQUEST_MOVE,
+        "game_id": "1",
+        "source": {"row": 0, "col": 0},
+        "destination": {"row": 0, "col": 2},
+    }
+
+
+def test_request_jump_message_shape():
+    message = protocol.request_jump("1", Position(0, 0), Position(2, 2))
+    assert message == {
+        "type": protocol.REQUEST_JUMP,
+        "game_id": "1",
+        "source": {"row": 0, "col": 0},
+        "destination": {"row": 2, "col": 2},
+    }
+
+
+def test_jump_started_message_shape():
+    message = protocol.jump_started("1", Position(0, 0), Position(2, 2))
+    assert message == {
+        "type": protocol.JUMP_STARTED,
+        "game_id": "1",
+        "source": {"row": 0, "col": 0},
+        "destination": {"row": 2, "col": 2},
+    }
 
 
 def test_move_result_accepted():
