@@ -13,7 +13,7 @@ import pytest
 from model.position import Position
 from net import protocol
 from net.ws_server import serve
-from network.network_game_facade import NetworkGameFacade
+from network.network_game_facade import NetworkGameFacade, wait_for_game_start
 from network.ws_client import WsClient
 
 
@@ -35,7 +35,8 @@ def _register_login_and_play(uri: str, username: str) -> NetworkGameFacade:
     login_result = client.recv_one_blocking()
     assert login_result["success"] is True
     client.send(protocol.play())
-    return NetworkGameFacade(client)
+    start = wait_for_game_start(client)
+    return NetworkGameFacade(client, start)
 
 
 async def test_two_network_game_facades_play_a_full_move_over_a_real_socket(running_server):

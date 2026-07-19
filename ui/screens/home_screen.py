@@ -1,8 +1,8 @@
 """The screen shown right after logging in: a welcome line naming who's
-logged in, and one "Play" button - as trivial as this milestone's home
-screen is meant to be. Clicking Play just reports the click; ui/main.py
-owns actually sending the play command and switching to a GameScreen once
-matchmaking finds an opponent (see build_network_game_screen in main.py).
+logged in, a "Play" button, and a "Rooms" button - as trivial as this
+milestone's home screen is meant to be. Clicking either just reports the
+click; ui/main.py owns actually sending the play/rooms commands and
+switching screens once a game is found (see build_home_screen in main.py).
 """
 
 import cv2
@@ -14,13 +14,14 @@ from ui_widgets.canvas import blank_canvas
 
 class HomeScreen:
     def __init__(
-        self, username: str, elo: int, on_play,
+        self, username: str, elo: int, on_play, on_rooms,
         width: int = ui_config.HOME_SCREEN_WIDTH, height: int = ui_config.HOME_SCREEN_HEIGHT,
     ):
-        """on_play: called with no arguments when Play is clicked."""
+        """on_play/on_rooms: called with no arguments when the matching button is clicked."""
         self._username = username
         self._elo = elo
         self._on_play = on_play
+        self._on_rooms = on_rooms
         self._width = width
         self._height = height
         button_width, button_height = 220, 70
@@ -28,6 +29,13 @@ class HomeScreen:
             "Play",
             x=(width - button_width) // 2,
             y=(height - button_height) // 2,
+            width=button_width,
+            height=button_height,
+        )
+        self._rooms_button = Button(
+            "Rooms",
+            x=(width - button_width) // 2,
+            y=(height - button_height) // 2 + button_height + 20,
             width=button_width,
             height=button_height,
         )
@@ -49,11 +57,16 @@ class HomeScreen:
             0.7, color=ui_config.HOME_SCREEN_TITLE_COLOR,
         )
         self._play_button.draw_on(canvas)
+        self._rooms_button.draw_on(canvas)
         return canvas
 
     def handle_mouse(self, event, x, y, flags, param) -> None:
-        if event == cv2.EVENT_LBUTTONDOWN and self._play_button.contains(x, y):
+        if event != cv2.EVENT_LBUTTONDOWN:
+            return
+        if self._play_button.contains(x, y):
             self._on_play()
+        elif self._rooms_button.contains(x, y):
+            self._on_rooms()
 
     def handle_key(self, key: int | None) -> None:
         pass

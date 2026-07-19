@@ -129,3 +129,44 @@ async def test_rejoining_an_unknown_game_id_is_rejected(running_server):
         response = protocol.decode(await ws.recv())
         assert response["type"] == protocol.ERROR
         assert response["code"] == "cannot_rejoin"
+
+
+async def test_create_then_join_a_room_over_real_sockets(running_server):
+    uri = f"ws://localhost:{running_server}"
+
+    async with websockets.connect(uri) as creator_ws, websockets.connect(uri) as joiner_ws:
+        await _register_and_login(creator_ws, "alice")
+        await _register_and_login(joiner_ws, "bob")
+
+        # create_room blocks the creator's own connection until someone
+        # joins (mirrors matchmaking's play()) - the rest of the server,
+        # including joiner_ws's own messages, keeps running concurrently.
+        await creator_ws.send(protocol.encode(protocol.create_room("Alice's room")))
+        created = protocol.decode(await creator_ws.recv())
+        assert created["type"] == protocol.ROOM_CREATED
+        room_id = created["room_id"]
+
+        await joiner_ws.send(protocol.encode(protocol.list_rooms()))
+        listing = protocol.decode(await joiner_ws.recv())
+        assert listing["type"] == protocol.ROOM_LIST
+        assert any(r["id"] == room_id and r["name"] == "Alice's room" for r in listing["rooms"])
+
+        await joiner_ws.send(protocol.encode(protocol.join_room(room_id)))
+        joiner_start = protocol.decode(await joiner_ws.recv())
+        creator_start = protocol.decode(await asyncio.wait_for(creator_ws.recv(), timeout=3))
+
+        assert joiner_start["type"] == protocol.GAME_START
+        assert creator_start["type"] == protocol.GAME_START
+        assert joiner_start["game_id"] == creator_start["game_id"]
+        assert {joiner_start["color"], creator_start["color"]} == {"white", "black"}
+
+
+async def test_joining_an_unknown_room_id_is_rejected(running_server):
+    uri = f"ws://localhost:{running_server}"
+
+    async with websockets.connect(uri) as ws:
+        await _register_and_login(ws, "alice")
+        await ws.send(protocol.encode(protocol.join_room("no-such-room")))
+        response = protocol.decode(await ws.recv())
+        assert response["type"] == protocol.ERROR
+        assert response["code"] == "cannot_join_room"

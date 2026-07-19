@@ -19,6 +19,10 @@ REGISTER = "register"
 PLAY = "play"
 CANCEL_MATCHMAKING = "cancel_matchmaking"
 REJOIN_GAME = "rejoin_game"
+LIST_ROOMS = "list_rooms"
+CREATE_ROOM = "create_room"
+JOIN_ROOM = "join_room"
+CANCEL_ROOM = "cancel_room"
 
 # server -> client
 GAME_START = "game_start"
@@ -33,6 +37,8 @@ GAME_OVER = "game_over"
 LOGIN_RESULT = "login_result"
 MATCHMAKING_STATUS = "matchmaking_status"
 OPPONENT_DISCONNECTED = "opponent_disconnected"
+ROOM_LIST = "room_list"
+ROOM_CREATED = "room_created"
 ERROR = "error"
 
 
@@ -177,3 +183,27 @@ def matchmaking_status(status: str) -> dict:
 
 def opponent_disconnected(game_id: str, forfeit_in_ms: int) -> dict:
     return {"type": OPPONENT_DISCONNECTED, "game_id": game_id, "forfeit_in_ms": forfeit_in_ms}
+
+
+def list_rooms() -> dict:
+    return {"type": LIST_ROOMS}
+
+
+def create_room(name: str) -> dict:
+    return {"type": CREATE_ROOM, "name": name}
+
+
+def join_room(room_id: str) -> dict:
+    return {"type": JOIN_ROOM, "room_id": room_id}
+
+
+def cancel_room(room_id: str) -> dict:
+    return {"type": CANCEL_ROOM, "room_id": room_id}
+
+
+def room_list(rooms: list) -> dict:
+    return {"type": ROOM_LIST, "rooms": rooms}
+
+
+def room_created(room_id: str) -> dict:
+    return {"type": ROOM_CREATED, "room_id": room_id}

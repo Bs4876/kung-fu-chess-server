@@ -3,8 +3,8 @@ import cv2
 from screens.home_screen import HomeScreen
 
 
-def screen_for(on_play=lambda: None, width: int = 400, height: int = 300) -> HomeScreen:
-    return HomeScreen("alice", 1200, on_play, width=width, height=height)
+def screen_for(on_play=lambda: None, on_rooms=lambda: None, width: int = 400, height: int = 300) -> HomeScreen:
+    return HomeScreen("alice", 1200, on_play, on_rooms, width=width, height=height)
 
 
 def test_clicking_the_play_button_calls_on_play():
@@ -14,14 +14,22 @@ def test_clicking_the_play_button_calls_on_play():
     assert called == [True]
 
 
-def test_clicking_outside_the_play_button_does_nothing():
+def test_clicking_the_rooms_button_calls_on_rooms():
     called = []
-    screen = screen_for(on_play=lambda: called.append(True))
+    screen = screen_for(on_rooms=lambda: called.append(True))
+    screen.handle_mouse(cv2.EVENT_LBUTTONDOWN, 200, 240, 0, None)  # Rooms sits below Play
+    assert called == [True]
+
+
+def test_clicking_outside_either_button_does_nothing():
+    play_called, rooms_called = [], []
+    screen = screen_for(on_play=lambda: play_called.append(True), on_rooms=lambda: rooms_called.append(True))
     screen.handle_mouse(cv2.EVENT_LBUTTONDOWN, 5, 5, 0, None)
-    assert called == []
+    assert play_called == []
+    assert rooms_called == []
 
 
-def test_a_non_click_mouse_event_over_the_button_does_nothing():
+def test_a_non_click_mouse_event_over_a_button_does_nothing():
     called = []
     screen = screen_for(on_play=lambda: called.append(True))
     screen.handle_mouse(cv2.EVENT_MOUSEMOVE, 200, 150, 0, None)

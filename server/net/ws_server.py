@@ -20,6 +20,7 @@ from net import auth, protocol
 from net.bot_player import BotPlayer
 from net.game_room import GameRoom
 from net.matchmaking import Matchmaking
+from net.room_registry import RoomRegistry
 from net.session import Session
 from persistence.db import connect as connect_db
 from persistence.elo_updater import EloUpdater
@@ -57,7 +58,7 @@ def start_bot(room: GameRoom, color: str) -> None:
     room.attach_bot(color, BotPlayer(room, color))
 
 
-def make_handler(matchmaking: Matchmaking, games: GameRegistry, users: UsersRepository):
+def make_handler(matchmaking: Matchmaking, rooms: RoomRegistry, games: GameRegistry, users: UsersRepository):
     """Build the per-connection coroutine websockets.serve calls for each client."""
 
     async def handler(websocket) -> None:
@@ -67,26 +68,48 @@ def make_handler(matchmaking: Matchmaking, games: GameRegistry, users: UsersRepo
         async def send(message: dict) -> None:
             await websocket.send(protocol.encode(message))
 
-        async def start_matchmaking() -> None:
+        async def require_authenticated() -> bool:
+            if session.is_authenticated:
+                return True
+            await send(protocol.error("not_authenticated", "log in first"))
+            return False
+
+        async def enter_room(game_room: GameRoom) -> None:
             nonlocal room
-            if not session.is_authenticated:
-                await send(protocol.error("not_authenticated", "log in before playing"))
-                return
-            await send(protocol.matchmaking_status("searching"))
-            room = await matchmaking.play(websocket, session.user)
+            room = game_room
             color = room.color_of(websocket)
             await send(protocol.game_start(room.game_id, color, room.state_version, room.snapshot()))
 
+        async def start_matchmaking() -> None:
+            if not await require_authenticated():
+                return
+            await send(protocol.matchmaking_status("searching"))
+            await enter_room(await matchmaking.play(websocket, session.user))
+
         async def rejoin(message: dict) -> None:
-            nonlocal room
             target = games.get(message.get("game_id"))
             color = target.color_of_player(session.user) if target is not None else None
             if target is None or color is None or target.ended:
                 await send(protocol.error("cannot_rejoin", "no active game to rejoin"))
                 return
             target.rejoin(websocket, color)
-            room = target
-            await send(protocol.game_start(room.game_id, color, room.state_version, room.snapshot()))
+            await enter_room(target)
+
+        async def create_room(message: dict) -> None:
+            if not await require_authenticated():
+                return
+            room_id = rooms.create_room(message["name"], websocket, session.user)
+            await send(protocol.room_created(room_id))
+            await enter_room(await rooms.await_join(room_id))
+
+        async def join_room(message: dict) -> None:
+            if not await require_authenticated():
+                return
+            game_room = rooms.join_room(message["room_id"], websocket, session.user)
+            if game_room is None:
+                await send(protocol.error("cannot_join_room", "room not found or already full"))
+                return
+            await enter_room(game_room)
 
         async def dispatch(text: str) -> None:
             try:
@@ -106,6 +129,14 @@ def make_handler(matchmaking: Matchmaking, games: GameRegistry, users: UsersRepo
                 matchmaking.cancel(websocket)
             elif message_type == protocol.REJOIN_GAME:
                 await rejoin(message)
+            elif message_type == protocol.LIST_ROOMS:
+                await send(protocol.room_list(rooms.list_rooms()))
+            elif message_type == protocol.CREATE_ROOM:
+                await create_room(message)
+            elif message_type == protocol.JOIN_ROOM:
+                await join_room(message)
+            elif message_type == protocol.CANCEL_ROOM:
+                rooms.cancel_room(message["room_id"], websocket)
             elif room is not None and message_type in _ROOM_HANDLERS:
                 _ROOM_HANDLERS[message_type](room, message)
             else:
@@ -142,8 +173,9 @@ async def serve(
     games = GameRegistry(bus)
     matchmaking = Matchmaking(games.new_room, start_bot)
     matchmaking.start()
+    rooms = RoomRegistry(games.new_room)
 
-    return await websockets.serve(make_handler(matchmaking, games, users), host, port)
+    return await websockets.serve(make_handler(matchmaking, rooms, games, users), host, port)
 
 
 async def _serve_forever(host: str = WS_HOST, port: int = WS_PORT) -> None:

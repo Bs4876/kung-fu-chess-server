@@ -44,16 +44,27 @@ def _chebyshev_distance(a: Position, b: Position) -> int:
     return max(abs(a.row - b.row), abs(a.col - b.col))
 
 
+def wait_for_game_start(client) -> dict:
+    """Block until a game_start arrives on client, discarding anything else
+    that shows up first (e.g. matchmaking_status while waiting to be
+    matched). Only useful for callers that are themselves blocking (e.g.
+    ui/main.py's Play flow) - a non-blocking caller like RoomsScreen already
+    has its game_start in hand from its own recv_all() loop and passes it
+    straight to NetworkGameFacade instead of calling this."""
+    while True:
+        message = client.recv_one_blocking()
+        if message["type"] == protocol.GAME_START:
+            return message
+
+
 class NetworkGameFacade:
-    def __init__(self, client):
+    def __init__(self, client, start: dict):
         """client: anything shaped like WsClient (send(message)/recv_all()/
         recv_one_blocking()) - real WsClient in production, a fake in tests
-        (see ui/tests/unit/test_network_game_facade.py).
-
-        client must already be logged in and have just sent a `play`
-        command (see net/protocol.py) - construction blocks until game_start
-        arrives, skipping over any preamble (e.g. matchmaking_status) sent
-        while waiting to be matched.
+        (see ui/tests/unit/test_network_game_facade.py). start: the
+        game_start message this connection already received (via
+        wait_for_game_start(client), or however the caller obtained it) -
+        construction itself never blocks or reads from client.
         """
         self._client = client
         self._rule_engine = RuleEngine()
@@ -75,18 +86,9 @@ class NetworkGameFacade:
             protocol.ERROR: self._handle_error,
         }
 
-        start = self._recv_game_start()
         self.game_id: str = start["game_id"]
         self.color: str = start["color"]
         self._board = Board(start["snapshot"]["board"])
-
-    def _recv_game_start(self) -> dict:
-        """Block until a game_start arrives, discarding anything else that
-        shows up first (e.g. matchmaking_status while waiting to be matched)."""
-        while True:
-            message = self._client.recv_one_blocking()
-            if message["type"] == protocol.GAME_START:
-                return message
 
     @property
     def game_over(self) -> bool:

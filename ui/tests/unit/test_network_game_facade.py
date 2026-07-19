@@ -10,7 +10,7 @@ from chess_io.board_parser import BoardParser
 from engine.game_engine import Arrived, Captured, GameSnapshot, Halted, MoveResult, Promoted
 from model.position import Position
 from net import protocol
-from network.network_game_facade import NetworkGameFacade
+from network.network_game_facade import NetworkGameFacade, wait_for_game_start
 from state.game_events import GameOver, MoveAccepted, MoveRejected, PieceArrived, PieceCaptured, PieceHalted, Promotion
 
 
@@ -40,9 +40,27 @@ class FakeWsClient:
         return messages
 
 
+class FakeBlockingClient:
+    """For testing wait_for_game_start in isolation: recv_one_blocking pops
+    from a preset queue of messages, in arrival order."""
+
+    def __init__(self, messages: list):
+        self._messages = list(messages)
+
+    def recv_one_blocking(self, timeout: float = 5.0) -> dict:
+        return self._messages.pop(0)
+
+
+def test_wait_for_game_start_skips_preamble_messages_before_game_start():
+    board = BoardParser().parse("wQ . .\n. . .\n. . .")
+    start = protocol.game_start("1", "white", 0, GameSnapshot(board, game_over=False))
+    client = FakeBlockingClient([protocol.matchmaking_status("searching"), start])
+    assert wait_for_game_start(client) == start
+
+
 def facade_for(board_text: str) -> tuple[NetworkGameFacade, FakeWsClient]:
     client = FakeWsClient(board_text)
-    return NetworkGameFacade(client), client
+    return NetworkGameFacade(client, client._game_start), client
 
 
 def events_from(facade: NetworkGameFacade) -> list:
