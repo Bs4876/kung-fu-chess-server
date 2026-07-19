@@ -26,11 +26,15 @@ async def running_server(tmp_path):
 async def test_two_network_game_facades_play_a_full_move_over_a_real_socket(running_server):
     uri = f"ws://localhost:{running_server}"
 
-    # connect() blocks (waiting on the WS handshake, then on game_start) -
-    # run it on worker threads so the main thread's event loop stays free to
-    # actually run the server the two clients are connecting to.
-    white = await asyncio.to_thread(connect, uri)
-    black = await asyncio.to_thread(connect, uri)
+    # connect() blocks (waiting on the WS handshake, then on game_start,
+    # which itself doesn't arrive until the server's AnonymousLobby pairs
+    # this connection with a second one) - run both concurrently on worker
+    # threads, or the first call would block forever waiting for a second
+    # player who never gets the chance to connect.
+    white, black = await asyncio.gather(
+        asyncio.to_thread(connect, uri),
+        asyncio.to_thread(connect, uri),
+    )
     assert {white.color, black.color} == {"white", "black"}
 
     white.request_move(Position(6, 0), Position(5, 0))

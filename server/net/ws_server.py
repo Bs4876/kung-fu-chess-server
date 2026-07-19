@@ -1,7 +1,9 @@
 """Single-process WebSocket server entrypoint.
 
-Stage 2 scope: exactly one hardcoded 2-player room, no login/matchmaking/
-rooms yet (those land in later stages, all reusing GameRoom unchanged).
+Pairs connections two at a time through AnonymousLobby (see its own
+docstring for why this is deliberately trivial, throwaway scaffolding) - no
+login/matchmaking/rooms yet (those land in later stages, all reusing
+GameRoom unchanged).
 """
 
 import asyncio
@@ -14,6 +16,7 @@ from chess_io.board_parser import BoardParser
 from config import GAME_LOG_DIR, WS_HOST, WS_PORT
 from model.starting_position import STARTING_POSITION
 from net import protocol
+from net.anonymous_lobby import AnonymousLobby
 from net.game_room import GameRoom
 from persistence.event_log import EventLogWriter
 
@@ -23,11 +26,8 @@ _HANDLERS = {
 }
 
 
-def build_room(bus: EventBus, game_id: str = "1") -> GameRoom:
-    board = BoardParser().parse(STARTING_POSITION)
-    room = GameRoom(game_id, board, bus)
-    room.start()
-    return room
+def _new_starting_board():
+    return BoardParser().parse(STARTING_POSITION)
 
 
 async def _dispatch(room: GameRoom, websocket, text: str) -> None:
@@ -40,14 +40,12 @@ async def _dispatch(room: GameRoom, websocket, text: str) -> None:
     handler(room, message)
 
 
-def make_handler(room: GameRoom):
+def make_handler(lobby: AnonymousLobby):
     """Build the per-connection coroutine websockets.serve calls for each client."""
 
     async def handler(websocket) -> None:
-        color = room.join(websocket)
-        if color is None:
-            await websocket.send(protocol.encode(protocol.error("room_full", "This room already has two players.")))
-            return
+        room = await lobby.join(websocket)
+        color = room.color_of(websocket)
         await websocket.send(protocol.encode(protocol.game_start(room.game_id, color, room.state_version, room.snapshot())))
         try:
             async for text in websocket:
@@ -59,7 +57,7 @@ def make_handler(room: GameRoom):
 
 
 async def serve(host: str = WS_HOST, port: int = WS_PORT, log_dir: Path = GAME_LOG_DIR):
-    """Start listening on host:port, hosting one hardcoded room.
+    """Start listening on host:port, pairing connections two at a time.
 
     Returns the running Server (already accepting connections) - callers
     manage its lifetime themselves (`server.close()` + `await
@@ -71,8 +69,8 @@ async def serve(host: str = WS_HOST, port: int = WS_PORT, log_dir: Path = GAME_L
     """
     bus = EventBus()
     bus.subscribe_all(EventLogWriter(log_dir))
-    room = build_room(bus)
-    return await websockets.serve(make_handler(room), host, port)
+    lobby = AnonymousLobby(bus, _new_starting_board)
+    return await websockets.serve(make_handler(lobby), host, port)
 
 
 async def _serve_forever(host: str = WS_HOST, port: int = WS_PORT) -> None:

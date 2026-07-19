@@ -44,10 +44,16 @@ async def test_two_clients_join_and_play_a_full_move_over_a_real_socket(running_
         assert arrived["state_version"] == 1
 
 
-async def test_a_third_connection_is_told_the_room_is_full(running_server):
+async def test_a_third_and_fourth_connection_are_paired_into_a_separate_room(running_server):
     uri = f"ws://localhost:{running_server}"
 
-    async with websockets.connect(uri) as _first, websockets.connect(uri) as _second, websockets.connect(uri) as third:
-        rejection = protocol.decode(await third.recv())
-        assert rejection["type"] == protocol.ERROR
-        assert rejection["code"] == "room_full"
+    async with websockets.connect(uri) as first, websockets.connect(uri) as second, \
+            websockets.connect(uri) as third, websockets.connect(uri) as fourth:
+        first_room = protocol.decode(await first.recv())["game_id"]
+        second_room = protocol.decode(await second.recv())["game_id"]
+        third_room = protocol.decode(await third.recv())["game_id"]
+        fourth_room = protocol.decode(await fourth.recv())["game_id"]
+
+        assert first_room == second_room
+        assert third_room == fourth_room
+        assert first_room != third_room

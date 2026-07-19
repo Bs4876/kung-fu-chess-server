@@ -63,6 +63,12 @@ class GameRoom:
             if socket is websocket:
                 del self._sockets[color]
 
+    def color_of(self, websocket) -> str | None:
+        for color, socket in self._sockets.items():
+            if socket is websocket:
+                return color
+        return None
+
     def handle_request_move(self, message: dict) -> None:
         source = protocol.position_from_wire(message["source"])
         destination = protocol.position_from_wire(message["destination"])

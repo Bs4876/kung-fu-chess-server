@@ -62,3 +62,17 @@ SOUND_CAPTURE = SOUNDS_DIR / "capture.wav"
 SOUND_PROMOTION = SOUNDS_DIR / "promotion.wav"
 SOUND_GAME_OVER = SOUNDS_DIR / "game_over.wav"
 SOUND_ILLEGAL_MOVE = SOUNDS_DIR / "illegal_move.wav"
+
+# ui_widgets/button.py - the only clickable widget the course's Img-only
+# graphics rule leaves room for: a labeled, pixel-drawn rectangle.
+BUTTON_BG_COLOR = (90, 70, 40, 255)      # BGRA warm brown
+BUTTON_TEXT_COLOR = (255, 255, 255, 255)  # BGRA white
+BUTTON_FONT_SIZE = 0.8
+BUTTON_LABEL_PADDING_PX = 16
+
+# screens/home_screen.py
+HOME_SCREEN_WIDTH = 900
+HOME_SCREEN_HEIGHT = 700
+HOME_SCREEN_BG_COLOR = (60, 45, 30, 255)      # BGRA dark warm brown
+HOME_SCREEN_TITLE_COLOR = (230, 225, 215, 255)  # BGRA off-white
+HOME_SCREEN_TITLE_FONT_SIZE = 1.2

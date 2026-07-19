@@ -34,6 +34,20 @@ async def test_join_assigns_white_then_black_then_rejects_a_third():
     assert room.join(FakeSocket()) is None
 
 
+async def test_color_of_reports_each_sockets_assigned_color():
+    room = GameRoom("1", board_from(["wR . .", ". . .", ". . ."]), EventBus())
+    white, black = FakeSocket(), FakeSocket()
+    room.join(white)
+    room.join(black)
+    assert room.color_of(white) == "white"
+    assert room.color_of(black) == "black"
+
+
+def test_color_of_returns_none_for_an_unseated_socket():
+    room = GameRoom("1", board_from(["wR . .", ". . .", ". . ."]), EventBus())
+    assert room.color_of(FakeSocket()) is None
+
+
 async def test_leave_frees_the_slot_for_reuse():
     room = GameRoom("1", board_from(["wR . .", ". . .", ". . ."]), EventBus())
     socket = FakeSocket()
