@@ -2,9 +2,9 @@
 
 Login gates matchmaking: a connection must send login/register before play
 is accepted. Matchmaking (net/matchmaking.py) pairs authenticated sessions
-within MATCH_ELO_RANGE, falling back to a bot after MATCHMAKING_WAIT_MS -
-superseding the earlier anonymous-lobby pairing now that there's login/ELO
-to actually match on.
+within MATCH_ELO_RANGE, giving up with an error after MATCHMAKING_WAIT_MS if
+no human match is found - superseding the earlier anonymous-lobby pairing
+now that there's login/ELO to actually match on.
 """
 
 import asyncio
@@ -19,7 +19,6 @@ from config import (
 )
 from model.starting_position import STARTING_POSITION
 from net import auth, protocol
-from net.bot_player import BotPlayer
 from net.game_room import GameRoom
 from net.matchmaking import Matchmaking
 from net.room_registry import RoomRegistry
@@ -60,16 +59,14 @@ class GameRegistry:
         return self._rooms.get(game_id)
 
 
-def start_bot(room: GameRoom, color: str) -> None:
-    room.attach_bot(color, BotPlayer(room, color))
-
-
 def make_handler(matchmaking: Matchmaking, rooms: RoomRegistry, games: GameRegistry, users: UsersRepository):
     """Build the per-connection coroutine websockets.serve calls for each client."""
 
     async def handler(websocket) -> None:
         session = Session()
         room: GameRoom | None = None
+        viewing_room: GameRoom | None = None  # kept separate from `room` so a
+        # viewer's request_move/request_jump never reaches _ROOM_HANDLERS below
 
         async def send(message: dict) -> None:
             await websocket.send(protocol.encode(message))
@@ -90,7 +87,11 @@ def make_handler(matchmaking: Matchmaking, rooms: RoomRegistry, games: GameRegis
             if not await require_authenticated():
                 return
             await send(protocol.matchmaking_status("searching"))
-            await enter_room(await matchmaking.play(websocket, session.user))
+            game_room = await matchmaking.play(websocket, session.user)
+            if game_room is None:
+                await send(protocol.error("no_opponent_found", "no opponent found within the time limit"))
+                return
+            await enter_room(game_room)
 
         async def rejoin(message: dict) -> None:
             target = games.get(message.get("game_id"))
@@ -117,6 +118,20 @@ def make_handler(matchmaking: Matchmaking, rooms: RoomRegistry, games: GameRegis
                 return
             await enter_room(game_room)
 
+        async def watch_room(message: dict) -> None:
+            nonlocal viewing_room
+            if not await require_authenticated():
+                return
+            game_room = rooms.watch_room(message["room_id"])
+            if game_room is None:
+                await send(protocol.error("cannot_watch_room", "room not found or not yet running"))
+                return
+            game_room.add_viewer(websocket)
+            viewing_room = game_room
+            # color=None marks this as a viewer's catch-up snapshot rather
+            # than a seated player's game_start.
+            await send(protocol.game_start(game_room.game_id, None, game_room.state_version, game_room.snapshot()))
+
         async def route(message: dict) -> None:
             message_type = message["type"]
             if message_type == protocol.LOGIN:
@@ -137,6 +152,8 @@ def make_handler(matchmaking: Matchmaking, rooms: RoomRegistry, games: GameRegis
                 await join_room(message)
             elif message_type == protocol.CANCEL_ROOM:
                 rooms.cancel_room(message["room_id"], websocket)
+            elif message_type == protocol.WATCH_ROOM:
+                await watch_room(message)
             elif room is not None and message_type in _ROOM_HANDLERS:
                 _ROOM_HANDLERS[message_type](room, message)
             else:
@@ -170,6 +187,8 @@ def make_handler(matchmaking: Matchmaking, rooms: RoomRegistry, games: GameRegis
             matchmaking.cancel(websocket)
             if room is not None:
                 room.leave(websocket)
+            if viewing_room is not None:
+                viewing_room.leave_viewer(websocket)
 
     return handler
 
@@ -187,7 +206,7 @@ async def serve(
     `log_dir`/`db_path` default to the real GAME_LOG_DIR/DB_PATH, and the
     matchmaking/disconnect timings to their real config defaults, but all
     are overridable so tests can point at a temp dir and run matchmaking's
-    bot-fallback/forfeit timing fast instead of waiting on real wall-clock
+    timeout/forfeit timing fast instead of waiting on real wall-clock
     seconds (see server/tests/integration/test_full_flow.py).
     """
     bus = EventBus()
@@ -196,7 +215,7 @@ async def serve(
     bus.subscribe_all(EloUpdater(users))
 
     games = GameRegistry(bus, disconnect_grace_ms=disconnect_grace_ms)
-    matchmaking = Matchmaking(games.new_room, start_bot, tick_ms=matchmaking_tick_ms, wait_ms=matchmaking_wait_ms)
+    matchmaking = Matchmaking(games.new_room, tick_ms=matchmaking_tick_ms, wait_ms=matchmaking_wait_ms)
     matchmaking.start()
     rooms = RoomRegistry(games.new_room)
 

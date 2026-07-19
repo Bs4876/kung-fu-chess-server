@@ -9,6 +9,7 @@ shadow-import bug.
 from pathlib import Path
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+CLIENT_LOG_DIR = Path(__file__).resolve().parent / "data" / "client_logs"  # ui-side network/game event log
 
 WINDOW_TITLE = "Kung Fu Chess"
 
@@ -76,6 +77,7 @@ HOME_SCREEN_HEIGHT = 700
 HOME_SCREEN_BG_COLOR = (60, 45, 30, 255)      # BGRA dark warm brown
 HOME_SCREEN_TITLE_COLOR = (230, 225, 215, 255)  # BGRA off-white
 HOME_SCREEN_TITLE_FONT_SIZE = 1.2
+HOME_SCREEN_STATUS_COLOR = (120, 140, 230, 255)  # BGRA soft red - matches LOGIN_SCREEN_STATUS_COLOR
 
 # ui_widgets/text_input.py
 TEXT_INPUT_BG_COLOR = (235, 230, 220, 255)              # BGRA off-white

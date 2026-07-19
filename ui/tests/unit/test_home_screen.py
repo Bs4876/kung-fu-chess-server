@@ -49,3 +49,8 @@ def test_tick_does_not_raise():
 
 def test_handle_key_does_not_raise():
     screen_for().handle_key(65)
+
+
+def test_render_does_not_raise_with_a_status_message_set():
+    screen = HomeScreen("alice", 1200, lambda: None, lambda: None, status="no opponent found, try again")
+    screen.render()

@@ -56,11 +56,10 @@ class GameRoom:
     anything else interested (the write-log, an ELO updater) sees it the
     same instant connected clients do.
 
-    Also seats up to two locally-driven bots (net/bot_player.py) in place of
-    a websocket, and tracks a grace-then-forfeit timer per color when its
-    socket disconnects mid-game (see leave()/rejoin()) - the tick loop itself
-    never depends on either player being connected, so a disconnect can only
-    ever affect fairness/outcome, never stall the simulation.
+    Tracks a grace-then-forfeit timer per color when its socket disconnects
+    mid-game (see leave()/rejoin()) - the tick loop itself never depends on
+    either player being connected, so a disconnect can only ever affect
+    fairness/outcome, never stall the simulation.
     """
 
     def __init__(
@@ -75,7 +74,7 @@ class GameRoom:
         self._tick_ms = tick_ms
         self._sockets: dict[str, object] = {}
         self._players: dict[str, object | None] = {}
-        self._bots: dict[str, object] = {}
+        self._viewers: list = []
         self._disconnect_tasks: dict[str, asyncio.Task] = {}
         self._ended = False  # set once the game ends for any reason: king capture or forfeit
         self._tick_task: asyncio.Task | None = None
@@ -116,11 +115,20 @@ class GameRoom:
                 return color
         return None
 
-    def attach_bot(self, color: str, bot) -> None:
-        """Seat a locally-driven bot (net/bot_player.py, no websocket) in
-        color. GameRoom calls bot.take_turn() once per tick, the same
-        cadence a real player's moves resolve at."""
-        self._bots[color] = bot
+    def add_viewer(self, websocket) -> None:
+        """Seat websocket as a read-only spectator - not one of the two
+        color slots, never subject to the disconnect-grace/forfeit timer,
+        and every subsequent broadcast (outcomes, game_over) reaches it too
+        (see _broadcast). Callers are responsible for sending it an initial
+        snapshot to catch up on the game already in progress."""
+        self._viewers.append(websocket)
+
+    def leave_viewer(self, websocket) -> None:
+        """A viewer's connection dropped - just stop broadcasting to it, no
+        forfeit/grace timer involved (a viewer leaving never affects the
+        game's outcome)."""
+        if websocket in self._viewers:
+            self._viewers.remove(websocket)
 
     def leave(self, websocket) -> None:
         """A connection dropped. If the game is still running, start a
@@ -181,8 +189,6 @@ class GameRoom:
     async def _tick_loop(self) -> None:
         while not self._engine.game_over:
             await asyncio.sleep(self._tick_ms / 1000)
-            for bot in self._bots.values():
-                bot.take_turn()
             self._engine.wait(self._tick_ms)
 
     def _on_engine_outcome(self, outcome) -> None:
@@ -225,5 +231,5 @@ class GameRoom:
 
     def _broadcast(self, message: dict) -> None:
         text = protocol.encode(message)
-        for socket in self._sockets.values():
+        for socket in list(self._sockets.values()) + self._viewers:
             asyncio.create_task(_safe_send(socket, text))

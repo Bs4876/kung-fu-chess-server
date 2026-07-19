@@ -6,11 +6,13 @@ ui/tests/unit/test_game_facade.py exercises the real GameFacade, so the two
 can be compared side by side.
 """
 
+import pytest
+
 from chess_io.board_parser import BoardParser
 from engine.game_engine import Arrived, Captured, GameSnapshot, Halted, MoveResult, Promoted
 from model.position import Position
 from net import protocol
-from network.network_game_facade import NetworkGameFacade, wait_for_game_start
+from network.network_game_facade import MatchmakingError, NetworkGameFacade, wait_for_game_start
 from state.game_events import GameOver, MoveAccepted, MoveRejected, PieceArrived, PieceCaptured, PieceHalted, Promotion
 
 
@@ -58,9 +60,20 @@ def test_wait_for_game_start_skips_preamble_messages_before_game_start():
     assert wait_for_game_start(client) == start
 
 
-def facade_for(board_text: str) -> tuple[NetworkGameFacade, FakeWsClient]:
+def test_wait_for_game_start_raises_matchmaking_error_on_an_error_message():
+    client = FakeBlockingClient([
+        protocol.matchmaking_status("searching"),
+        protocol.error("no_opponent_found", "no opponent found within the time limit"),
+    ])
+    with pytest.raises(MatchmakingError) as exc_info:
+        wait_for_game_start(client)
+    assert exc_info.value.code == "no_opponent_found"
+    assert exc_info.value.message == "no opponent found within the time limit"
+
+
+def facade_for(board_text: str, event_logger=None) -> tuple[NetworkGameFacade, FakeWsClient]:
     client = FakeWsClient(board_text)
-    return NetworkGameFacade(client, client._game_start), client
+    return NetworkGameFacade(client, client._game_start, event_logger=event_logger), client
 
 
 def events_from(facade: NetworkGameFacade) -> list:
@@ -210,3 +223,19 @@ def test_error_message_does_not_raise_and_publishes_no_event():
     client.queue(protocol.error("bad_message", "oops"))
     facade.tick(0)
     assert events == []
+
+
+def test_event_logger_receives_moves_outcomes_and_game_over_under_the_game_topic():
+    logged = []
+    facade, client = facade_for("wQ . . . . . . .\n" + ". . . . . . . .\n" * 7, event_logger=logged.append)
+
+    client.queue(protocol.move_result("1", Position(0, 0), Position(0, 2), MoveResult(True, "ok")))
+    arrived = Arrived(source=Position(0, 0), destination=Position(0, 2), token="wQ", is_jump=False)
+    client.queue(protocol.outcome(protocol.ARRIVED, "1", 1, arrived))
+    client.queue(protocol.game_over("1", 1, "king_capture", "white"))
+    facade.tick(0)
+
+    assert [topic for topic, _event in logged] == ["game.1", "game.1", "game.1"]
+    assert isinstance(logged[0][1], MoveAccepted)
+    assert isinstance(logged[1][1], PieceArrived)
+    assert isinstance(logged[2][1], GameOver)

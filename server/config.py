@@ -25,5 +25,5 @@ ELO_K_FACTOR = 32  # standard default for lower-rated/provisional players, not s
 # --- Matchmaking / disconnect handling ----------------------------------
 MATCH_ELO_RANGE = 100  # per the slide's "+-100"
 MATCHMAKING_TICK_MS = 500  # how often the waiting queue is rescanned for pairs/timeouts
-MATCHMAKING_WAIT_MS = 10_000  # how long to wait for a human match before falling back to a bot
-DISCONNECT_GRACE_MS = 20_000  # how long a disconnected player's seat is held before forfeit
+MATCHMAKING_WAIT_MS = 60_000  # how long to wait for a human match before giving up (spec: "e.g. one minute")
+DISCONNECT_GRACE_MS = 25_000  # how long a disconnected player's seat is held before forfeit (spec: 20-30s)

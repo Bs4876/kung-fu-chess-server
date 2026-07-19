@@ -44,27 +44,48 @@ def _chebyshev_distance(a: Position, b: Position) -> int:
     return max(abs(a.row - b.row), abs(a.col - b.col))
 
 
+class MatchmakingError(Exception):
+    """Raised by wait_for_game_start when the server sends an error instead
+    of a game_start (e.g. no opponent found within the matchmaking wait) -
+    lets a blocking caller like ui/main.py's Play flow stop waiting and
+    report it, instead of hanging forever."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
 def wait_for_game_start(client) -> dict:
     """Block until a game_start arrives on client, discarding anything else
     that shows up first (e.g. matchmaking_status while waiting to be
-    matched). Only useful for callers that are themselves blocking (e.g.
-    ui/main.py's Play flow) - a non-blocking caller like RoomsScreen already
-    has its game_start in hand from its own recv_all() loop and passes it
-    straight to NetworkGameFacade instead of calling this."""
+    matched). Raises MatchmakingError if the server sends an error instead
+    (e.g. matchmaking timed out with no opponent found). Only useful for
+    callers that are themselves blocking (e.g. ui/main.py's Play flow) - a
+    non-blocking caller like RoomsScreen already has its game_start in hand
+    from its own recv_all() loop and passes it straight to NetworkGameFacade
+    instead of calling this."""
     while True:
         message = client.recv_one_blocking()
         if message["type"] == protocol.GAME_START:
             return message
+        if message["type"] == protocol.ERROR:
+            raise MatchmakingError(message["code"], message["message"])
 
 
 class NetworkGameFacade:
-    def __init__(self, client, start: dict):
+    def __init__(self, client, start: dict, event_logger=None):
         """client: anything shaped like WsClient (send(message)/recv_all()/
         recv_one_blocking()) - real WsClient in production, a fake in tests
         (see ui/tests/unit/test_network_game_facade.py). start: the
         game_start message this connection already received (via
         wait_for_game_start(client), or however the caller obtained it) -
-        construction itself never blocks or reads from client.
+        construction itself never blocks or reads from client. event_logger,
+        if given, is called as event_logger((topic, event)) - the same shape
+        persistence.event_log.EventLogWriter expects - for every
+        MoveAccepted/MoveRejected/outcome/GameOver this facade publishes,
+        under the topic "game.<game_id>", mirroring the server's own
+        per-game bus log on the client side.
         """
         self._client = client
         self._rule_engine = RuleEngine()
@@ -89,6 +110,12 @@ class NetworkGameFacade:
         self.game_id: str = start["game_id"]
         self.color: str = start["color"]
         self._board = Board(start["snapshot"]["board"])
+
+        if event_logger is not None:
+            topic = f"game.{self.game_id}"
+            self._moves_events.subscribe(lambda event: event_logger((topic, event)))
+            self._outcomes_events.subscribe(lambda event: event_logger((topic, event)))
+            self._game_over_events.subscribe(lambda event: event_logger((topic, event)))
 
     @property
     def game_over(self) -> bool:

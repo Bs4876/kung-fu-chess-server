@@ -8,8 +8,9 @@ from engine.game_engine import GameEngine
 from graphics.window import Window
 from model.starting_position import STARTING_POSITION
 from net import protocol
-from network.network_game_facade import NetworkGameFacade, wait_for_game_start
+from network.network_game_facade import MatchmakingError, NetworkGameFacade, wait_for_game_start
 from network.ws_client import WsClient
+from persistence.event_log import EventLogWriter
 from screens.game_screen import GameScreen
 from screens.home_screen import HomeScreen
 from screens.login_screen import LoginScreen
@@ -33,32 +34,40 @@ def main() -> None:
     window = Window(ui_config.WINDOW_TITLE)
     screen_manager = ScreenManager(window)
     clock = Clock()
+    client_log_writer = EventLogWriter(ui_config.CLIENT_LOG_DIR)
 
-    def build_home_screen(client, username: str, elo: int) -> HomeScreen:
+    def build_home_screen(client, username: str, elo: int, status: str = "") -> HomeScreen:
         def on_play() -> None:
             # Play requires having already logged in on this same connection
             # (see net/ws_server.py) - matchmaking then blocks this thread
-            # until it finds a human within range or, failing that, a bot
-            # (see net/matchmaking.py); there's no "searching..." UI state
-            # for Play yet, so this just waits. Contrast with Rooms below,
-            # which is fully non-blocking.
+            # until it finds a human within range or, failing that, the
+            # server gives up (see net/matchmaking.py); there's no
+            # "searching..." UI state for Play yet, so this just waits.
+            # Contrast with Rooms below, which is fully non-blocking.
             client.send(protocol.play())
-            start = wait_for_game_start(client)
-            screen_manager.show(GameScreen(NetworkGameFacade(client, start)))
+            try:
+                start = wait_for_game_start(client)
+            except MatchmakingError as exc:
+                screen_manager.show(build_home_screen(client, username, elo, status=exc.message))
+                return
+            screen_manager.show(GameScreen(NetworkGameFacade(client, start, event_logger=client_log_writer)))
 
         def on_rooms() -> None:
             def on_back() -> None:
                 screen_manager.show(build_home_screen(client, username, elo))
 
             def on_game_start(room_client, start) -> None:
-                screen_manager.show(GameScreen(NetworkGameFacade(room_client, start)))
+                screen_manager.show(GameScreen(NetworkGameFacade(room_client, start, event_logger=client_log_writer)))
 
             screen_manager.show(RoomsScreen(client, on_game_start, on_back))
 
-        return HomeScreen(username, elo, on_play, on_rooms)
+        return HomeScreen(username, elo, on_play, on_rooms, status=status)
 
     def build_login_screen() -> LoginScreen:
-        client = WsClient(_SERVER_URI)
+        def on_network_event(kind: str, payload: dict) -> None:
+            client_log_writer(("network", {"event": kind, **payload}))
+
+        client = WsClient(_SERVER_URI, on_event=on_network_event)
 
         def on_success(username: str, elo: int) -> None:
             screen_manager.show(build_home_screen(client, username, elo))

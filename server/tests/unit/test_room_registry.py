@@ -37,7 +37,9 @@ def registry_for():
 async def test_create_room_lists_it_with_one_occupant():
     registry, _rooms = registry_for()
     room_id = registry.create_room("Alice's room", FakeSocket(), FakeUser("alice"))
-    assert registry.list_rooms() == [{"id": room_id, "name": "Alice's room", "occupants": 1, "capacity": 2}]
+    assert registry.list_rooms() == [
+        {"id": room_id, "name": "Alice's room", "occupants": 1, "capacity": 2, "status": "waiting"}
+    ]
 
 
 async def test_join_room_seats_the_second_occupant_and_starts_a_game_room():
@@ -52,11 +54,13 @@ async def test_join_room_seats_the_second_occupant_and_starts_a_game_room():
     assert game_room.joined == [(creator_socket, alice), (joiner_socket, bob)]
 
 
-async def test_joined_room_no_longer_appears_in_the_list():
+async def test_joined_room_appears_in_the_list_as_running():
     registry, _rooms = registry_for()
     room_id = registry.create_room("Alice's room", FakeSocket(), FakeUser("alice"))
     registry.join_room(room_id, FakeSocket(), FakeUser("bob"))
-    assert registry.list_rooms() == []
+    assert registry.list_rooms() == [
+        {"id": room_id, "name": "Alice's room", "occupants": 2, "capacity": 2, "status": "running"}
+    ]
 
 
 async def test_join_room_with_an_unknown_id_returns_none():
@@ -103,3 +107,22 @@ async def test_room_ids_are_unique_across_creations():
     first = registry.create_room("Room A", FakeSocket(), FakeUser("alice"))
     second = registry.create_room("Room B", FakeSocket(), FakeUser("bob"))
     assert first != second
+
+
+async def test_watch_room_returns_the_running_game_room():
+    registry, rooms = registry_for()
+    room_id = registry.create_room("Alice's room", FakeSocket(), FakeUser("alice"))
+    game_room = registry.join_room(room_id, FakeSocket(), FakeUser("bob"))
+    assert registry.watch_room(room_id) is game_room
+    assert game_room is rooms[0]
+
+
+async def test_watch_room_returns_none_for_a_still_pending_room():
+    registry, _rooms = registry_for()
+    room_id = registry.create_room("Alice's room", FakeSocket(), FakeUser("alice"))
+    assert registry.watch_room(room_id) is None
+
+
+def test_watch_room_returns_none_for_an_unknown_id():
+    registry, _rooms = registry_for()
+    assert registry.watch_room("no-such-room") is None

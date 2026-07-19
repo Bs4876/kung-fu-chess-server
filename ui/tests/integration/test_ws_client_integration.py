@@ -69,3 +69,27 @@ async def test_two_network_game_facades_play_a_full_move_over_a_real_socket(runn
     assert white.snapshot().get_piece(Position(5, 0)) == "wP"
     assert black.snapshot().get_piece(Position(6, 0)) == "."
     assert black.snapshot().get_piece(Position(5, 0)) == "wP"
+
+
+async def test_on_event_hook_fires_for_connect_send_recv_and_close(running_server):
+    uri = f"ws://localhost:{running_server}"
+    events: list[tuple[str, dict]] = []
+
+    # WsClient.__init__ blocks its calling thread until connected - run it
+    # (and the rest of the exchange) on a worker thread, the same way
+    # _register_login_and_play above does, or it would deadlock the
+    # pytest-asyncio loop this test and running_server's own server share.
+    def _connect_send_and_close() -> None:
+        client = WsClient(uri, on_event=lambda kind, payload: events.append((kind, payload)))
+        client.send(protocol.register("frank", "hunter2"))
+        client.recv_one_blocking()
+        client.close()
+
+    await asyncio.to_thread(_connect_send_and_close)
+    await asyncio.sleep(0.1)  # let the background thread's close() event land
+
+    kinds = [kind for kind, _payload in events]
+    assert kinds[0] == "connect"
+    assert "send" in kinds
+    assert "recv" in kinds
+    assert kinds[-1] == "close"

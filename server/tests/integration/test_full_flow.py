@@ -1,6 +1,6 @@
 """Scripted end-to-end regression test chaining together everything the
 networking layer does, against one real running server: login -> matched
-play -> disconnect -> forfeit -> ELO update -> bot fallback -> rooms.
+play -> disconnect -> forfeit -> ELO update -> matchmaking timeout -> rooms.
 Extends the existing server/tests/integration/test_integration.py precedent
 (several real modules wired together, nothing mocked) to the whole net/
 subsystem. Each piece already has its own focused unit/integration
@@ -8,9 +8,9 @@ coverage elsewhere; this test's job is proving they all still compose
 correctly end-to-end, not re-deriving every edge case again.
 
 Matchmaking/disconnect timings are overridden to be fast (see serve()'s
-overrides) so bot-fallback and forfeit are both reachable without waiting
-on the real ~10-20 real-second config defaults - keeps this test fast and
-non-flaky to run repeatedly.
+overrides) so the matchmaking timeout and forfeit are both reachable
+without waiting on the real ~1-minute/25-second config defaults - keeps
+this test fast and non-flaky to run repeatedly.
 """
 
 import asyncio
@@ -88,19 +88,14 @@ async def test_full_networking_flow(running_server):
     winner_username = "bob" if black_start["color"] == forfeit["winner"] else "alice"
     assert (bob_elo if winner_username == "bob" else alice_elo) > 1200
 
-    # --- 6. A lone player with no human opponent falls back to a bot --------
+    # --- 6. A lone player with no human opponent times out with an error ----
     async with websockets.connect(uri) as lone_ws:
         await _register_and_login(lone_ws, "carol")
         await lone_ws.send(protocol.encode(protocol.play()))
         assert protocol.decode(await lone_ws.recv())["type"] == protocol.MATCHMAKING_STATUS
-        bot_game_start = protocol.decode(await asyncio.wait_for(lone_ws.recv(), timeout=3))
-        assert bot_game_start["type"] == protocol.GAME_START
-
-        # The bot (seated as the other color) makes its own moves without
-        # this client ever sending anything else - proves BotPlayer is
-        # actually wired into the room's tick loop end-to-end.
-        bot_activity = protocol.decode(await asyncio.wait_for(lone_ws.recv(), timeout=3))
-        assert bot_activity["type"] in (protocol.MOVE_ACCEPTED, protocol.ARRIVED)
+        timeout_result = protocol.decode(await asyncio.wait_for(lone_ws.recv(), timeout=3))
+        assert timeout_result["type"] == protocol.ERROR
+        assert timeout_result["code"] == "no_opponent_found"
 
     # --- 7. Rooms: a second, manual way into a game --------------------------
     async with websockets.connect(uri) as creator_ws, websockets.connect(uri) as joiner_ws:
@@ -116,3 +111,35 @@ async def test_full_networking_flow(running_server):
         creator_start = protocol.decode(await asyncio.wait_for(creator_ws.recv(), timeout=3))
         assert joiner_start["type"] == creator_start["type"] == protocol.GAME_START
         assert joiner_start["game_id"] == creator_start["game_id"]
+
+        # --- 8. A third connection watches the now-running room ------------
+        async with websockets.connect(uri) as viewer_ws:
+            await _register_and_login(viewer_ws, "frank")
+
+            await viewer_ws.send(protocol.encode(protocol.list_rooms()))
+            room_list = protocol.decode(await viewer_ws.recv())
+            assert room_list["type"] == protocol.ROOM_LIST
+            listed = next(r for r in room_list["rooms"] if r["id"] == created["room_id"])
+            assert listed["status"] == "running"
+            assert listed["occupants"] == 2
+
+            await viewer_ws.send(protocol.encode(protocol.watch_room(created["room_id"])))
+            watch_start = protocol.decode(await viewer_ws.recv())
+            assert watch_start["type"] == protocol.GAME_START
+            assert watch_start["color"] is None
+            assert watch_start["game_id"] == creator_start["game_id"]
+
+            # A move by a real player is broadcast to the viewer too.
+            await creator_ws.send(protocol.encode(
+                protocol.request_move(creator_start["game_id"], Position(6, 0), Position(5, 0))
+            ))
+            viewer_broadcast = protocol.decode(await asyncio.wait_for(viewer_ws.recv(), timeout=3))
+            assert viewer_broadcast["type"] == protocol.MOVE_ACCEPTED
+
+            # A viewer's own move request is rejected, not applied.
+            await viewer_ws.send(protocol.encode(
+                protocol.request_move(creator_start["game_id"], Position(1, 0), Position(2, 0))
+            ))
+            rejected = protocol.decode(await asyncio.wait_for(viewer_ws.recv(), timeout=3))
+            assert rejected["type"] == protocol.ERROR
+            assert rejected["code"] == "bad_message"

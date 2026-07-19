@@ -16,14 +16,20 @@ class HomeScreen:
     def __init__(
         self, username: str, elo: int, on_play, on_rooms,
         width: int = ui_config.HOME_SCREEN_WIDTH, height: int = ui_config.HOME_SCREEN_HEIGHT,
+        status: str = "",
     ):
-        """on_play/on_rooms: called with no arguments when the matching button is clicked."""
+        """on_play/on_rooms: called with no arguments when the matching
+        button is clicked. status: an optional one-line message shown below
+        the buttons (e.g. "no opponent found, try again" after a failed
+        matchmaking attempt) - the same status-line pattern LoginScreen/
+        RoomsScreen already use."""
         self._username = username
         self._elo = elo
         self._on_play = on_play
         self._on_rooms = on_rooms
         self._width = width
         self._height = height
+        self._status = status
         button_width, button_height = 220, 70
         self._play_button = Button(
             "Play",
@@ -58,6 +64,11 @@ class HomeScreen:
         )
         self._play_button.draw_on(canvas)
         self._rooms_button.draw_on(canvas)
+        if self._status:
+            canvas.put_text(
+                self._status, self._width // 2 - 140, self._rooms_button.y + self._rooms_button.height + 40,
+                0.6, color=ui_config.HOME_SCREEN_STATUS_COLOR,
+            )
         return canvas
 
     def handle_mouse(self, event, x, y, flags, param) -> None:

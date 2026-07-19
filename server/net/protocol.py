@@ -23,6 +23,7 @@ LIST_ROOMS = "list_rooms"
 CREATE_ROOM = "create_room"
 JOIN_ROOM = "join_room"
 CANCEL_ROOM = "cancel_room"
+WATCH_ROOM = "watch_room"
 
 # server -> client
 GAME_START = "game_start"
@@ -199,6 +200,10 @@ def join_room(room_id: str) -> dict:
 
 def cancel_room(room_id: str) -> dict:
     return {"type": CANCEL_ROOM, "room_id": room_id}
+
+
+def watch_room(room_id: str) -> dict:
+    return {"type": WATCH_ROOM, "room_id": room_id}
 
 
 def room_list(rooms: list) -> dict:

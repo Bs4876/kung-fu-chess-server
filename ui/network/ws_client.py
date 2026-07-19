@@ -27,8 +27,16 @@ class WsClient:
     library would, without needing to know anything about asyncio.
     """
 
-    def __init__(self, uri: str, connect_timeout: float = 5.0):
+    def __init__(self, uri: str, connect_timeout: float = 5.0, on_event=None):
+        """on_event(kind, payload), if given, is called for every bit of
+        network activity this connection sees - "connect"/"send"/"recv"/
+        "close" - so a caller can log it (see ui/main.py's wiring of
+        persistence.event_log.EventLogWriter) without this module needing
+        to know anything about logging itself. Called from whichever thread
+        the activity happens on (the background asyncio thread for
+        connect/recv/close, the caller's own thread for send)."""
         self._uri = uri
+        self._on_event = on_event or (lambda kind, payload: None)
         self._inbound: queue.Queue = queue.Queue()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._connection = None
@@ -45,6 +53,7 @@ class WsClient:
     def send(self, message: dict) -> None:
         """Fire-and-forget: hand message to the connection's own event loop
         thread for delivery. Safe to call from the render thread."""
+        self._on_event("send", {"message": message})
         asyncio.run_coroutine_threadsafe(self._connection.send(protocol.encode(message)), self._loop)
 
     def recv_all(self) -> list:
@@ -80,5 +89,11 @@ class WsClient:
         async with websockets.connect(self._uri) as connection:
             self._connection = connection
             self._ready.set()
-            async for text in connection:
-                self._inbound.put(protocol.decode(text))
+            self._on_event("connect", {"uri": self._uri})
+            try:
+                async for text in connection:
+                    message = protocol.decode(text)
+                    self._on_event("recv", {"message": message})
+                    self._inbound.put(message)
+            finally:
+                self._on_event("close", {})

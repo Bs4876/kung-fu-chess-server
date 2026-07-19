@@ -64,6 +64,37 @@ async def test_leave_frees_the_slot_for_reuse():
     assert room.join(FakeSocket()) == "white"
 
 
+async def test_viewer_receives_broadcasts_alongside_seated_players():
+    room = GameRoom("1", board_from(["wR . .", ". . .", ". . ."]), EventBus())
+    white, black, viewer = FakeSocket(), FakeSocket(), FakeSocket()
+    room.join(white)
+    room.join(black)
+    room.add_viewer(viewer)
+
+    room.handle_request_move({"source": {"row": 0, "col": 0}, "destination": {"row": 0, "col": 2}})
+    await _flush()
+
+    assert viewer.sent[-1]["type"] == protocol.MOVE_ACCEPTED
+
+
+async def test_leave_viewer_stops_further_broadcasts_to_it():
+    room = GameRoom("1", board_from(["wR . .", ". . .", ". . ."]), EventBus())
+    socket, viewer = FakeSocket(), FakeSocket()
+    room.join(socket)
+    room.add_viewer(viewer)
+    room.leave_viewer(viewer)
+
+    room.handle_request_move({"source": {"row": 0, "col": 0}, "destination": {"row": 0, "col": 2}})
+    await _flush()
+
+    assert viewer.sent == []
+
+
+def test_leave_viewer_on_a_socket_that_was_never_a_viewer_does_nothing():
+    room = GameRoom("1", board_from(["wR . .", ". . .", ". . ."]), EventBus())
+    room.leave_viewer(FakeSocket())  # must not raise
+
+
 async def test_accepted_move_broadcasts_move_accepted_to_every_seated_player():
     room = GameRoom("1", board_from(["wR . .", ". . .", ". . ."]), EventBus())
     white, black = FakeSocket(), FakeSocket()
@@ -200,26 +231,6 @@ def test_color_of_player_returns_none_for_an_unseated_player():
 def test_color_of_player_returns_none_for_none():
     room = GameRoom("1", board_from(["wR . .", ". . .", ". . ."]), EventBus())
     assert room.color_of_player(None) is None
-
-
-class _SpyBot:
-    def __init__(self):
-        self.turns = 0
-
-    def take_turn(self) -> None:
-        self.turns += 1
-
-
-async def test_attached_bots_take_a_turn_every_tick():
-    room = GameRoom("1", board_from(["wR . .", ". . .", ". . ."]), EventBus(), tick_ms=10)
-    bot = _SpyBot()
-    room.attach_bot("black", bot)
-    room.start()
-    try:
-        await asyncio.sleep(0.05)
-    finally:
-        room.stop()
-    assert bot.turns >= 2
 
 
 async def test_leave_mid_game_broadcasts_opponent_disconnected_to_the_remaining_player():

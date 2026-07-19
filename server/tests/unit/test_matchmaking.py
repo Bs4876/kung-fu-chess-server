@@ -44,25 +44,21 @@ class FakeClock:
 
 def matchmaking_for(clock=None, elo_range: int = 100, tick_ms: int = 10, wait_ms: int = 1000):
     rooms: list[FakeRoom] = []
-    bots: list[tuple] = []
 
     def new_room() -> FakeRoom:
         room = FakeRoom()
         rooms.append(room)
         return room
 
-    def start_bot(room, color) -> None:
-        bots.append((room, color))
-
     matchmaking = Matchmaking(
-        new_room, start_bot, clock=clock or FakeClock(),
+        new_room, clock=clock or FakeClock(),
         elo_range=elo_range, tick_ms=tick_ms, wait_ms=wait_ms,
     )
-    return matchmaking, rooms, bots
+    return matchmaking, rooms
 
 
 async def test_two_users_within_range_are_matched_into_the_same_room():
-    matchmaking, rooms, _bots = matchmaking_for(tick_ms=10)
+    matchmaking, rooms = matchmaking_for(tick_ms=10)
     matchmaking.start()
     try:
         alice, bob = FakeUser("alice", 1200), FakeUser("bob", 1250)
@@ -79,7 +75,7 @@ async def test_two_users_within_range_are_matched_into_the_same_room():
 
 
 async def test_users_outside_range_are_not_matched_to_each_other():
-    matchmaking, rooms, _bots = matchmaking_for(elo_range=100, tick_ms=10, wait_ms=10_000)
+    matchmaking, rooms = matchmaking_for(elo_range=100, tick_ms=10, wait_ms=10_000)
     matchmaking.start()
     try:
         alice, bob = FakeUser("alice", 1000), FakeUser("bob", 1500)
@@ -97,9 +93,9 @@ async def test_users_outside_range_are_not_matched_to_each_other():
         matchmaking.stop()
 
 
-async def test_a_lone_waiting_user_falls_back_to_a_bot_after_wait_ms_elapses():
+async def test_a_lone_waiting_user_resolves_to_none_after_wait_ms_elapses():
     clock = FakeClock()
-    matchmaking, rooms, bots = matchmaking_for(clock=clock, tick_ms=10, wait_ms=1000)
+    matchmaking, rooms = matchmaking_for(clock=clock, tick_ms=10, wait_ms=1000)
     matchmaking.start()
     try:
         alice = FakeUser("alice", 1200)
@@ -108,19 +104,17 @@ async def test_a_lone_waiting_user_falls_back_to_a_bot_after_wait_ms_elapses():
         await asyncio.sleep(0.02)  # let it register as waiting
         clock.advance(2)  # jump past wait_ms
 
-        room = await asyncio.wait_for(task, timeout=1)
+        result = await asyncio.wait_for(task, timeout=1)
 
-        assert len(rooms) == 1
-        assert rooms[0] is room
-        assert room.joined == [(socket, alice)]
-        assert bots == [(room, "black")]
+        assert result is None
+        assert rooms == []
     finally:
         matchmaking.stop()
 
 
-async def test_a_bot_fallback_does_not_fire_before_wait_ms_elapses():
+async def test_timeout_does_not_fire_before_wait_ms_elapses():
     clock = FakeClock()
-    matchmaking, rooms, bots = matchmaking_for(clock=clock, tick_ms=10, wait_ms=1000)
+    matchmaking, rooms = matchmaking_for(clock=clock, tick_ms=10, wait_ms=1000)
     matchmaking.start()
     try:
         task = asyncio.create_task(matchmaking.play(FakeSocket(), FakeUser("alice", 1200)))
@@ -130,14 +124,13 @@ async def test_a_bot_fallback_does_not_fire_before_wait_ms_elapses():
 
         assert not task.done()
         assert rooms == []
-        assert bots == []
         task.cancel()
     finally:
         matchmaking.stop()
 
 
 async def test_cancel_removes_a_still_waiting_entry():
-    matchmaking, rooms, _bots = matchmaking_for(tick_ms=10, wait_ms=10_000)
+    matchmaking, rooms = matchmaking_for(tick_ms=10, wait_ms=10_000)
     matchmaking.start()
     try:
         socket = FakeSocket()
