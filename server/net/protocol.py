@@ -15,7 +15,6 @@ from model.position import Position
 REQUEST_MOVE = "request_move"
 REQUEST_JUMP = "request_jump"
 LOGIN = "login"
-REGISTER = "register"
 PLAY = "play"
 CANCEL_MATCHMAKING = "cancel_matchmaking"
 REJOIN_GAME = "rejoin_game"
@@ -38,6 +37,7 @@ GAME_OVER = "game_over"
 LOGIN_RESULT = "login_result"
 MATCHMAKING_STATUS = "matchmaking_status"
 OPPONENT_DISCONNECTED = "opponent_disconnected"
+OPPONENT_RECONNECTED = "opponent_reconnected"
 ROOM_LIST = "room_list"
 ROOM_CREATED = "room_created"
 ERROR = "error"
@@ -154,12 +154,8 @@ def error(code: str, message: str) -> dict:
     return {"type": ERROR, "code": code, "message": message}
 
 
-def login(username: str, password: str) -> dict:
-    return {"type": LOGIN, "username": username, "password": password}
-
-
-def register(username: str, password: str) -> dict:
-    return {"type": REGISTER, "username": username, "password": password}
+def login(username: str) -> dict:
+    return {"type": LOGIN, "username": username}
 
 
 def login_result(success: bool, reason: str | None, username: str | None, elo: int | None) -> dict:
@@ -184,6 +180,10 @@ def matchmaking_status(status: str) -> dict:
 
 def opponent_disconnected(game_id: str, forfeit_in_ms: int) -> dict:
     return {"type": OPPONENT_DISCONNECTED, "game_id": game_id, "forfeit_in_ms": forfeit_in_ms}
+
+
+def opponent_reconnected(game_id: str) -> dict:
+    return {"type": OPPONENT_RECONNECTED, "game_id": game_id}
 
 
 def list_rooms() -> dict:

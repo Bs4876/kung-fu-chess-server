@@ -145,11 +145,14 @@ class GameRoom:
     def rejoin(self, websocket, color: str) -> None:
         """Re-seat websocket in color - a previously-disconnected player
         reconnecting within the grace window - and cancel its pending
-        forfeit timer."""
+        forfeit timer, telling the other side so it can clear its own
+        on-screen countdown instead of it just running out with no visible
+        explanation once the forfeit silently never happens."""
         self._sockets[color] = websocket
         task = self._disconnect_tasks.pop(color, None)
         if task is not None:
             task.cancel()
+            self._broadcast(protocol.opponent_reconnected(self.game_id))
 
     def color_of(self, websocket) -> str | None:
         for color, socket in self._sockets.items():
@@ -218,6 +221,11 @@ class GameRoom:
         self._end_game("opponent_disconnected", winner)
 
     def _end_game(self, reason: str, winner: str | None) -> None:
+        # This check-then-set is only safe because this method has no
+        # `await` between them - asyncio can't interleave another caller
+        # (e.g. a forfeit timer firing the same instant as a king capture)
+        # into that gap. If this method ever grows an `await` before
+        # `self._ended = True`, that guarantee breaks and this needs a lock.
         if self._ended:
             return
         self._ended = True

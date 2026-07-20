@@ -71,7 +71,9 @@ class RoomRegistry:
 
     def watch_room(self, room_id: str) -> "GameRoom | None":
         """The already-running GameRoom for room_id, or None if it doesn't
-        exist or hasn't started yet (still pending its second player)."""
+        exist, hasn't started yet (still pending its second player), or has
+        already ended."""
+        self._evict_ended_rooms()
         running = self._running.get(room_id)
         return running.game_room if running is not None else None
 
@@ -84,7 +86,16 @@ class RoomRegistry:
         del self._pending[room_id]
         return True
 
+    def _evict_ended_rooms(self) -> None:
+        """Drop any running room whose game has already ended - _RunningRoom
+        holds the live GameRoom itself, so this is a lazy self-clean against
+        its .ended, not a separate finished-games list to keep in sync."""
+        ended_ids = [room_id for room_id, running in self._running.items() if running.game_room.ended]
+        for room_id in ended_ids:
+            del self._running[room_id]
+
     def list_rooms(self) -> list[dict]:
+        self._evict_ended_rooms()
         waiting = [
             {"id": pending.id, "name": pending.name, "occupants": 1, "capacity": 2, "status": "waiting"}
             for pending in self._pending.values()

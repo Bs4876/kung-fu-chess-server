@@ -12,8 +12,8 @@ def users_for(tmp_path) -> UsersRepository:
 
 def test_updates_both_players_elo_when_the_game_had_a_winner(tmp_path):
     users = users_for(tmp_path)
-    white = users.create_user("alice", "pw")
-    black = users.create_user("bob", "pw")
+    white = users.create_user("alice")
+    black = users.create_user("bob")
     bus = EventBus()
     bus.subscribe_all(EloUpdater(users))
 
@@ -26,7 +26,7 @@ def test_updates_both_players_elo_when_the_game_had_a_winner(tmp_path):
 
 def test_ignores_events_that_are_not_game_ended(tmp_path):
     users = users_for(tmp_path)
-    white = users.create_user("alice", "pw")
+    white = users.create_user("alice")
     bus = EventBus()
     bus.subscribe_all(EloUpdater(users))
 
@@ -37,7 +37,7 @@ def test_ignores_events_that_are_not_game_ended(tmp_path):
 
 def test_ignores_a_game_where_one_side_had_no_authenticated_player(tmp_path):
     users = users_for(tmp_path)
-    white = users.create_user("alice", "pw")
+    white = users.create_user("alice")
     bus = EventBus()
     bus.subscribe_all(EloUpdater(users))
 
@@ -48,8 +48,8 @@ def test_ignores_a_game_where_one_side_had_no_authenticated_player(tmp_path):
 
 def test_a_draw_moves_both_toward_each_other_via_the_0_5_score(tmp_path):
     users = users_for(tmp_path)
-    white = users.create_user("alice", "pw")  # DEFAULT_ELO
-    black = users.create_user("bob", "pw")
+    white = users.create_user("alice")  # DEFAULT_ELO
+    black = users.create_user("bob")
     users.update_elo("bob", black.elo + 200)
     black.elo += 200
     bus = EventBus()

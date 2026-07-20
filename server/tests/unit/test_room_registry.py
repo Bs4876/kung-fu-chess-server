@@ -16,6 +16,7 @@ class FakeUser:
 class FakeRoom:
     def __init__(self):
         self.joined: list[tuple] = []
+        self.ended = False
 
     def join(self, websocket, player=None) -> str:
         color = "white" if not self.joined else "black"
@@ -126,3 +127,24 @@ async def test_watch_room_returns_none_for_a_still_pending_room():
 def test_watch_room_returns_none_for_an_unknown_id():
     registry, _rooms = registry_for()
     assert registry.watch_room("no-such-room") is None
+
+
+async def test_an_ended_room_disappears_from_the_list():
+    registry, rooms = registry_for()
+    room_id = registry.create_room("Alice's room", FakeSocket(), FakeUser("alice"))
+    game_room = registry.join_room(room_id, FakeSocket(), FakeUser("bob"))
+
+    game_room.ended = True
+
+    assert registry.list_rooms() == []
+    assert rooms == [game_room]  # the GameRoom itself isn't touched, just delisted
+
+
+async def test_watch_room_returns_none_once_the_game_has_ended():
+    registry, _rooms = registry_for()
+    room_id = registry.create_room("Alice's room", FakeSocket(), FakeUser("alice"))
+    game_room = registry.join_room(room_id, FakeSocket(), FakeUser("bob"))
+
+    game_room.ended = True
+
+    assert registry.watch_room(room_id) is None

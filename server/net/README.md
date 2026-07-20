@@ -16,7 +16,7 @@ python -m net.ws_server
 ```
 
 This starts listening on `WS_HOST:WS_PORT` (see `config.py`) and runs until
-interrupted. `ui/main.py` connects to this address by default.
+interrupted. `client/main.py` connects to this address by default.
 
 ## Shape of the system
 

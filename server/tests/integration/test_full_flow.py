@@ -38,8 +38,8 @@ async def running_server(tmp_path):
     await server.wait_closed()
 
 
-async def _register_and_login(ws, username: str) -> dict:
-    await ws.send(protocol.encode(protocol.register(username, "hunter2")))
+async def _login(ws, username: str) -> dict:
+    await ws.send(protocol.encode(protocol.login(username)))
     response = protocol.decode(await ws.recv())
     assert response["success"] is True
     return response
@@ -51,8 +51,8 @@ async def test_full_networking_flow(running_server):
 
     # --- 1. Login -------------------------------------------------------
     async with websockets.connect(uri) as white_ws, websockets.connect(uri) as black_ws:
-        await _register_and_login(white_ws, "alice")
-        await _register_and_login(black_ws, "bob")
+        await _login(white_ws, "alice")
+        await _login(black_ws, "bob")
 
         # --- 2. Matchmaking pairs them (both default ELO -> within range) --
         await white_ws.send(protocol.encode(protocol.play()))
@@ -90,7 +90,7 @@ async def test_full_networking_flow(running_server):
 
     # --- 6. A lone player with no human opponent times out with an error ----
     async with websockets.connect(uri) as lone_ws:
-        await _register_and_login(lone_ws, "carol")
+        await _login(lone_ws, "carol")
         await lone_ws.send(protocol.encode(protocol.play()))
         assert protocol.decode(await lone_ws.recv())["type"] == protocol.MATCHMAKING_STATUS
         timeout_result = protocol.decode(await asyncio.wait_for(lone_ws.recv(), timeout=3))
@@ -99,8 +99,8 @@ async def test_full_networking_flow(running_server):
 
     # --- 7. Rooms: a second, manual way into a game --------------------------
     async with websockets.connect(uri) as creator_ws, websockets.connect(uri) as joiner_ws:
-        await _register_and_login(creator_ws, "dave")
-        await _register_and_login(joiner_ws, "erin")
+        await _login(creator_ws, "dave")
+        await _login(joiner_ws, "erin")
 
         await creator_ws.send(protocol.encode(protocol.create_room("Dave's room")))
         created = protocol.decode(await creator_ws.recv())
@@ -114,7 +114,7 @@ async def test_full_networking_flow(running_server):
 
         # --- 8. A third connection watches the now-running room ------------
         async with websockets.connect(uri) as viewer_ws:
-            await _register_and_login(viewer_ws, "frank")
+            await _login(viewer_ws, "frank")
 
             await viewer_ws.send(protocol.encode(protocol.list_rooms()))
             room_list = protocol.decode(await viewer_ws.recv())

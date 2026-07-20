@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [tool.pytest.ini_options]
-# server/ and ui/ each have their own main.py (and other same-named modules) -
+# server/ and client/ each have their own main.py (and other same-named modules) -
 # the default "prepend" import mode makes pytest juggle sys.path per test file
 # as it collects them, which silently lets one shadow the other depending on
 # collection order (e.g. server/tests/unit/test_main.py, which does a bare
@@ -22,11 +22,11 @@ addopts = "--import-mode=importlib"
 asyncio_mode = "auto"
 
 [tool.pyright]
-# ui/ scripts add server/ to sys.path at runtime (see ui/server_bridge.py); tell
-# the language server about it too, so its bare imports (`from model.board import
-# Board`, `from config import CELL_SIZE`, etc.) resolve instead of showing as
-# unresolved-import warnings.
-extraPaths = ["server", "ui"]
+# client/ scripts add server/ to sys.path at runtime (see client/server_bridge.py);
+# tell the language server about it too, so its bare imports (`from model.board
+# import Board`, `from config import CELL_SIZE`, etc.) resolve instead of showing
+# as unresolved-import warnings.
+extraPaths = ["server", "client"]
 
 [dependency-groups]
 dev = [

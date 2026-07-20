@@ -1,6 +1,6 @@
 from config import DEFAULT_ELO
 from net import protocol
-from net.auth import handle_login, handle_register
+from net.auth import handle_login
 from net.session import Session
 from persistence.db import connect
 from persistence.users_repository import UsersRepository
@@ -10,10 +10,11 @@ def users_for(tmp_path) -> UsersRepository:
     return UsersRepository(connect(tmp_path / "test.db"))
 
 
-def test_register_creates_a_user_and_authenticates_the_session(tmp_path):
+def test_login_with_an_unknown_username_creates_a_new_account_and_authenticates(tmp_path):
     users = users_for(tmp_path)
     session = Session()
-    response = handle_register({"username": "alice", "password": "hunter2"}, session, users)
+
+    response = handle_login({"username": "alice"}, session, users)
 
     assert response == {
         "type": protocol.LOGIN_RESULT, "success": True, "reason": None,
@@ -23,49 +24,24 @@ def test_register_creates_a_user_and_authenticates_the_session(tmp_path):
     assert session.user.username == "alice"
 
 
-def test_register_with_a_taken_username_fails_and_does_not_authenticate(tmp_path):
+def test_login_with_a_known_username_returns_its_existing_elo_unchanged(tmp_path):
     users = users_for(tmp_path)
-    handle_register({"username": "alice", "password": "hunter2"}, Session(), users)
+    handle_login({"username": "alice"}, Session(), users)
+    users.update_elo("alice", 1350)
 
     session = Session()
-    response = handle_register({"username": "alice", "password": "different"}, session, users)
-
-    assert response == {
-        "type": protocol.LOGIN_RESULT, "success": False, "reason": "username_taken",
-        "username": None, "elo": None,
-    }
-    assert not session.is_authenticated
-
-
-def test_login_with_correct_credentials_authenticates_the_session(tmp_path):
-    users = users_for(tmp_path)
-    handle_register({"username": "alice", "password": "hunter2"}, Session(), users)
-
-    session = Session()
-    response = handle_login({"username": "alice", "password": "hunter2"}, session, users)
+    response = handle_login({"username": "alice"}, session, users)
 
     assert response["success"] is True
     assert response["username"] == "alice"
+    assert response["elo"] == 1350
     assert session.user.username == "alice"
 
 
-def test_login_with_wrong_password_fails_and_does_not_authenticate(tmp_path):
+def test_logging_in_as_the_same_username_twice_does_not_create_a_second_account(tmp_path):
     users = users_for(tmp_path)
-    handle_register({"username": "alice", "password": "hunter2"}, Session(), users)
+    first_session, second_session = Session(), Session()
+    handle_login({"username": "alice"}, first_session, users)
+    handle_login({"username": "alice"}, second_session, users)
 
-    session = Session()
-    response = handle_login({"username": "alice", "password": "wrong"}, session, users)
-
-    assert response == {
-        "type": protocol.LOGIN_RESULT, "success": False, "reason": "invalid_credentials",
-        "username": None, "elo": None,
-    }
-    assert not session.is_authenticated
-
-
-def test_login_with_unknown_username_fails(tmp_path):
-    users = users_for(tmp_path)
-    session = Session()
-    response = handle_login({"username": "nobody", "password": "anything"}, session, users)
-    assert response["success"] is False
-    assert not session.is_authenticated
+    assert first_session.user.id == second_session.user.id

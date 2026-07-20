@@ -24,8 +24,8 @@ async def running_server(tmp_path):
     await server.wait_closed()
 
 
-async def _register_and_login(ws, username: str) -> None:
-    await ws.send(protocol.encode(protocol.register(username, "hunter2")))
+async def _login(ws, username: str) -> None:
+    await ws.send(protocol.encode(protocol.login(username)))
     response = protocol.decode(await ws.recv())
     assert response["success"] is True
 
@@ -33,8 +33,8 @@ async def _register_and_login(ws, username: str) -> None:
 async def _play_and_match(white_ws, black_ws) -> tuple[dict, dict]:
     """Register+log in both sockets as alice/bob, send play on both, and
     return their (white_start, black_start) game_start messages once matched."""
-    await _register_and_login(white_ws, "alice")
-    await _register_and_login(black_ws, "bob")
+    await _login(white_ws, "alice")
+    await _login(black_ws, "bob")
     await white_ws.send(protocol.encode(protocol.play()))
     await black_ws.send(protocol.encode(protocol.play()))
     assert protocol.decode(await white_ws.recv())["type"] == protocol.MATCHMAKING_STATUS
@@ -87,23 +87,23 @@ async def test_malformed_move_gets_an_error_and_does_not_crash_the_connection_or
         assert accepted["type"] == protocol.MOVE_ACCEPTED
 
 
-async def test_register_then_login_over_a_real_socket(running_server):
+async def test_logging_in_twice_reuses_the_same_account_over_a_real_socket(running_server):
     uri = f"ws://localhost:{running_server}"
 
-    async with websockets.connect(uri) as ws:
-        await ws.send(protocol.encode(protocol.register("alice", "hunter2")))
-        register_response = protocol.decode(await ws.recv())
-        assert register_response["success"] is True
-        assert register_response["username"] == "alice"
+    async with websockets.connect(uri) as first_ws, websockets.connect(uri) as second_ws:
+        await first_ws.send(protocol.encode(protocol.login("alice")))
+        first_login = protocol.decode(await first_ws.recv())
+        assert first_login["success"] is True
+        assert first_login["username"] == "alice"
 
-        await ws.send(protocol.encode(protocol.login("alice", "wrong password")))
-        failed_login = protocol.decode(await ws.recv())
-        assert failed_login["success"] is False
-
-        await ws.send(protocol.encode(protocol.login("alice", "hunter2")))
-        ok_login = protocol.decode(await ws.recv())
-        assert ok_login["success"] is True
-        assert ok_login["elo"] == register_response["elo"]
+        # A second connection logging in with the same username - no
+        # password, per the "just for presentation" spec - reuses the same
+        # account (created by the first login) rather than erroring or
+        # creating a duplicate.
+        await second_ws.send(protocol.encode(protocol.login("alice")))
+        second_login = protocol.decode(await second_ws.recv())
+        assert second_login["success"] is True
+        assert second_login["elo"] == first_login["elo"]
 
 
 async def test_play_before_logging_in_is_rejected(running_server):
@@ -130,7 +130,7 @@ async def test_disconnect_then_rejoin_resumes_the_same_game(running_server):
         assert disconnected_notice["type"] == protocol.OPPONENT_DISCONNECTED
 
         async with websockets.connect(uri) as reconnect_ws:
-            await reconnect_ws.send(protocol.encode(protocol.login("alice", "hunter2")))
+            await reconnect_ws.send(protocol.encode(protocol.login("alice")))
             login_response = protocol.decode(await reconnect_ws.recv())
             assert login_response["success"] is True
 
@@ -147,7 +147,7 @@ async def test_rejoining_an_unknown_game_id_is_rejected(running_server):
     uri = f"ws://localhost:{running_server}"
 
     async with websockets.connect(uri) as ws:
-        await _register_and_login(ws, "alice")
+        await _login(ws, "alice")
         await ws.send(protocol.encode(protocol.rejoin_game("no-such-game")))
         response = protocol.decode(await ws.recv())
         assert response["type"] == protocol.ERROR
@@ -158,8 +158,8 @@ async def test_create_then_join_a_room_over_real_sockets(running_server):
     uri = f"ws://localhost:{running_server}"
 
     async with websockets.connect(uri) as creator_ws, websockets.connect(uri) as joiner_ws:
-        await _register_and_login(creator_ws, "alice")
-        await _register_and_login(joiner_ws, "bob")
+        await _login(creator_ws, "alice")
+        await _login(joiner_ws, "bob")
 
         # create_room blocks the creator's own connection until someone
         # joins (mirrors matchmaking's play()) - the rest of the server,
@@ -188,7 +188,7 @@ async def test_joining_an_unknown_room_id_is_rejected(running_server):
     uri = f"ws://localhost:{running_server}"
 
     async with websockets.connect(uri) as ws:
-        await _register_and_login(ws, "alice")
+        await _login(ws, "alice")
         await ws.send(protocol.encode(protocol.join_room("no-such-room")))
         response = protocol.decode(await ws.recv())
         assert response["type"] == protocol.ERROR

@@ -5,11 +5,17 @@ __pycache__/
 htmlcov/
 .coverage
 .claude/
-ui/PLAN.md
+client/PLAN.md
+
+# Runtime-generated logs/DB (server/config.py's GAME_LOG_DIR/DB_PATH, client/
+# ui_config.py's CLIENT_LOG_DIR) - created by actually running the app/tests,
+# not source.
+server/data/
+client/data/
 
 # Old skin (generated from a single image via transforms) - not the required
 # multiple-distinct-images animation design. Kept locally as a rollback
 # reference only, deliberately not pushed to the graded repo.
-ui/assets/pieces3/
-ui/assets/pieces3_source/
-ui/tools/generate_pieces3_skin.py
+client/assets/pieces3/
+client/assets/pieces3_source/
+client/tools/generate_pieces3_skin.py
